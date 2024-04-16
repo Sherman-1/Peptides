@@ -23,9 +23,7 @@ def read_pdb(input_file):
     membrane_y_values = []
     membrane_z_values = []
 
-   
 
-                
     # The two membrane z-values
     inner_membrane_z = min(membrane_z_values) - margin
     outer_membrane_z = max(membrane_z_values) + margin

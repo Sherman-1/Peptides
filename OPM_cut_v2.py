@@ -31,7 +31,6 @@ def remove_outside_residues(input_file, size_fasta, min_size, max_size, output_f
             z_value = coords['z']
 
             #### WARNING ####
-                
             # If the residue is in the membrane,
             if inner_membrane_z <= z_value <= outer_membrane_z and min_membrane_x <= x_value <= max_membrane_x and min_membrane_y <= y_value <= max_membrane_y:
 

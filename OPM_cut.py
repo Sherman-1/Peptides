@@ -273,7 +273,7 @@ def remove_outside_residues(input_file, size_fasta, min_size, max_size, output_f
 
 def main():
     parser = argparse.ArgumentParser(description='Remove residues outside the membrane from a Membranome PDB file.')
-    parser.add_argument('input_file', help='The input PDB file.')
+    parser.add_argument('--input_file', help='The input PDB file.')
     parser.add_argument('-s','--size_fasta', help='Model FASTA file to pick a size from.')
     parser.add_argument('-l', '--min_size', type=int, default=20, help='The minimal size of the peptide. Default is 20.')
     parser.add_argument('-u', '--max_size', type=int, default=70, help='The maximal size of the peptide. Default is 70.')
