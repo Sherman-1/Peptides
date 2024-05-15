@@ -1,5 +1,5 @@
 from hydromoment import read_fasta_file, analyze_sequence
-from utils import read_pdb, ResidueError, pdb_struct_to_fasta
+from utils import read_pdb, ResidueError, pdb_struct_to_fasta, test
 
 import polars as pl 
 
@@ -32,25 +32,6 @@ peptides = (
     .collect()
 )
 
-
-for pdb_id in peptides.select(pl.col("pdbid")).to_series():
-
-    pdb_path = f"peptides/{pdb_id}.pdb"
-    wrong_pdbs = 0
-
-    try:
-        pdb = read_pdb(pdb_path)
-        pdb_struct_to_fasta(pdb_path)
-    except ResidueError as e:
-        print(f"Error reading {pdb_id}: {e}")
-        wrong_pdbs += 1
-        continue
-    except FileNotFoundError:
-        print(f"File not found: {pdb_id}")
-        print(peptides.filter(pl.col("pdbid") == pdb_id))
-        wrong_pdbs += 1
-        continue
-    
-print(f"Total wrong PDBs: {wrong_pdbs}")
+test()
     
 
