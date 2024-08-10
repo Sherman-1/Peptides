@@ -200,6 +200,8 @@ def pdb_struct_to_fasta(logger, writing_path = ".", write = False, streaming = F
     23-26  : Residue sequence number           (right, integer)
     27     : Code for insertions of residues   (character)  
     """
+    
+    log_messages = []
 
     if streaming and pdb_path and write:
 
@@ -230,7 +232,7 @@ def pdb_struct_to_fasta(logger, writing_path = ".", write = False, streaming = F
                     if not bool(chain_id.strip()):
 
                         chain_id = "A"
-                        logger.info(f"Chain ID not found in line {line} : setting it to A")
+                        log_messages.append(f"Chain ID not found in line {line} : setting it to A")
 
                     if chain_id != last_chain_id and last_chain_id:
 
@@ -277,7 +279,7 @@ def pdb_struct_to_fasta(logger, writing_path = ".", write = False, streaming = F
 
         return records
     
-def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
+def read_pdb(logger, file_path, secondary_structure_path = None, verbose = False) -> dict:
 
     """
     Function to process PDB format records.
@@ -317,6 +319,8 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
     23-26  : Residue sequence number           (right, integer)
     27     : Code for insertions of residues   (character)  
     """
+    
+    log_messages = []
     
 
     aa_dict = {
@@ -362,7 +366,7 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
                 if res_name == "DUM":
 
                     suspected_membrane_line = True
-                    logger.info("Suspected membrane line found")
+                    log_messages.append(f"Membrane line found : {line}")
 
                 if not suspected_membrane_line:
 
@@ -386,7 +390,7 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
 
                             pdb_struct["full"][chain_id][res_number][atom_number] = line
 
-                        logger.info(f"Chain {chain_id} found")
+                        log_messages.append(f"Chain {chain_id} found")
 
 
                     else:
@@ -439,7 +443,7 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
             
             ss_dict = defaultdict(dict)
 
-            logger.info("Secondary structure found")
+            log_messages.append("Secondary structure found")
 
             # Line format given by extract_SS.cpp 
             # chain_id << '\t' << res_number << '\t' << secondary_structure << '\n';
@@ -450,7 +454,7 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
                 res_number = int(line[1])
                 secondary_structure = line[2]
 
-                logger.info(f"Ss : {secondary_structure}\nChain_id : {chain_id}\nRes number : {res_number}")
+                log_messages.append(f"Ss : {secondary_structure}\nChain_id : {chain_id}\nRes number : {res_number}")
                 
                 ss_dict[chain_id][res_number] = secondary_structure
 
@@ -466,28 +470,34 @@ def read_pdb(logger, file_path, secondary_structure_path = None) -> dict:
                 if secondary_structure == "H" or secondary_structure == "S":
 
                     pdb_struct["CA"][chain_id][res_number].update({"folded" : True})
-                    logger.info(f"Res {res_number} in chain {chain_id} is in a folded region")
+                    log_messages.append(f"Res {res_number} in chain {chain_id} is in a folded region")
 
                 else:
 
                     pdb_struct["CA"][chain_id][res_number].update({"folded" : False})
     
-    logger.info(f"{pdb_struct['protein_name']} processed")
-    logger.info(f"Chains found : {pdb_struct['CA'].keys()}")
-    logger.info(f"Pdb structure : {pdb_struct}")
+    log_messages.append(f"{pdb_struct['protein_name']} processed")
+    log_messages.append(f"Chains found : {pdb_struct['CA'].keys()}")
+    log_messages.append(f"Pdb structure : {pdb_struct}")
+    
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
 
     return pdb_struct
 
 
 #### TRANS-MEMBRANE PROTEINS ####
 
-def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0):
+def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0, verbose = False) -> dict:
 
     """
     This function returns a binary string for each chain in the pdb_struct dictionary.
     The binary string is 1 if the residue is in the membrane +/- a margin for z coordinates
     , 0 otherwise. The margin parameter is in angstroms.
     """
+    
+    log_messages = []
     
     min_z_membrane = np.min(pdb_struct["membrane_coord"][:, 2]) 
     max_z_membrane = np.max(pdb_struct["membrane_coord"][:, 2]) 
@@ -503,10 +513,10 @@ def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0
     
     for chain_id, residues in pdb_struct["CA"].items():
 
-        logger.info(f"Binarizing chain {chain_id} ...")
+        log_messages.append(f"Binarizing chain {chain_id} ...")
 
         last_res_number = list(residues.keys())[0]
-        logger.info(f"First residue number : {last_res_number}")
+        log_messages.append(f"First residue number : {last_res_number}")
 
         last_res_number -= 1 # To pass the test for the condition int(res_number) != last_res_number + 1:
         for current_res_number, data in residues.items():
@@ -541,22 +551,28 @@ def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0
 
             last_res_number = int(current_res_number)
             
-        logger.info(f"Binary membrane for chain {chain_id} : {in_membrane_binaries[chain_id]}")
-        logger.info(f"Binary margin for chain {chain_id} : {in_margin_binaries[chain_id]}")
+        log_messages.append(f"Binary membrane for chain {chain_id} : {in_membrane_binaries[chain_id]}")
+        log_messages.append(f"Binary margin for chain {chain_id} : {in_margin_binaries[chain_id]}")
+        
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
 
 
     return in_membrane_binaries, in_margin_binaries
 
-def define_tm_segments(logger, binary_dict : dict, pdb_struct : dict):
+def define_tm_segments(logger, binary_dict : dict, pdb_struct : dict, verbose = False):
 
     """
     Search for transmembrane segments with streches of 1s of at least 15 residues 
     """
+    
+    log_messages = []
 
     tm_indices = {chain_id : [] for chain_id in binary_dict.keys() }
 
-    logger.info("Searching for transmembrane segments ...")
-    logger.info(f"Chains in the input dict : {binary_dict.keys()}")
+    log_messages.append("Searching for transmembrane segments ...")
+    log_messages.append(f"Chains in the input dict : {binary_dict.keys()}")
 
     start_index = None
 
@@ -592,12 +608,15 @@ def define_tm_segments(logger, binary_dict : dict, pdb_struct : dict):
         for i, (start, end, length) in enumerate(tm_indices[chain_id]):
             tm_indices[chain_id][i] = (first_residue + start - 1, first_residue + end - 1, length)
 
-        logger.info(f"Tm indices for chain {chain_id} : {tm_indices[chain_id]}")
+        log_messages.append(f"Tm indices for chain {chain_id} : {tm_indices[chain_id]}")
     
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
 
     return tm_indices
 
-def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, min_length=20, max_length=70):
+def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, min_length=20, max_length=70, verbose = False) -> int:
 
     """
     This function elongates transmembrane segments to a random size drawn from a given size distribution,
@@ -614,8 +633,10 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
     - int: Function completion status.
     """
     
-    logger.info("Elongating transmembrane segments ...")
-    logger.info(f"Input : {tm_indices.keys()}")
+    log_messages = []
+    
+    log_messages.append("Elongating transmembrane segments ...")
+    log_messages.append(f"Input : {tm_indices.keys()}")
 
     for chain_id in tm_indices:
 
@@ -627,12 +648,12 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
 
             desired_length = desired_lengths[i]
             
-            logger.info(f"Chain {chain_id}, segment {i} : {current_start} to {current_end}")
+            log_messages.append(f"Chain {chain_id}, segment {i} : {current_start} to {current_end}")
 
             if desired_length <= length_current:
 
                 tm_indices[chain_id][i] = (current_start, current_end, current_start, current_end)
-                logger.info(f"Chain {chain_id}, segment {i} : no elongation needed")
+                log_messages.append(f"Chain {chain_id}, segment {i} : no elongation needed")
 
             else:
                 
@@ -641,7 +662,7 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                 # Randomly determine the amount of elongation downstream and upstream ( Nter and Cter )
                 downstream = random.randint(0, elongation_needed)
                 upstream = elongation_needed - downstream
-                logger.info(f"Chain {chain_id}, segment {i}\n"
+                log_messages.append(f"Chain {chain_id}, segment {i}\n"
                             f"Old start to old end : {current_start} to {current_end}\n"
                             f"Desired length: {desired_length}\n"
                             f"Current length: {length_current}\n"
@@ -654,7 +675,7 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                 new_end_coordinates = current_end + downstream
                 new_start_coordinates = current_start - upstream
                 
-                logger.info(f"new start variables : current start {current_start} upstream {upstream} => {current_start - upstream}\n"
+                log_messages.append(f"new start variables : current start {current_start} upstream {upstream} => {current_start - upstream}\n"
                             f"new end variables : current end {current_end} downstream {downstream} chain length {chain_length} => {min(current_end + downstream, chain_length)}\n"
                             f"new start result : {new_start_coordinates}\n"
                             f"new end result : {new_end_coordinates}")
@@ -670,9 +691,13 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                 # Update the segment information with new start and end positions
                 tm_indices[chain_id][i] = (new_start_coordinates, new_end_coordinates, current_start, current_end)
 
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
+
     return 0
 
-def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict, gaps : int = 1):
+def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict, gaps : int = 1, verbose = False) -> dict:
 
     """
     This version of the function does not follow the start -> coordinates and check for buffers.
@@ -687,6 +712,8 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
     pdb_struct["full"][chain_id][res_number][atom_number] = text_line_from_pdb
                     
     """
+    
+    log_messages = []
 
     records = []
     records_shorts = []
@@ -694,13 +721,13 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
     structures_shorts = { chain_id : {} for chain_id in tm_indices }
     protein_name = pdb_struct["protein_name"]
 
-    logger.info(f"Extracting elongated sequences ... \nShape of input : {tm_indices.keys()}")
+    log_messages.append(f"Extracting elongated sequences ... \nShape of input : {tm_indices.keys()}")
     
     # Iterate per chain
     for chain_id in tm_indices:
 
-        logger.info(f"Iterating over chain {chain_id} indices : ")
-        logger.info(f"Indices : {tm_indices[chain_id]}")
+        log_messages.append(f"Iterating over chain {chain_id} indices : ")
+        log_messages.append(f"Indices : {tm_indices[chain_id]}")
 
         full = { i : {} for i, _ in enumerate(tm_indices[chain_id]) }
         full_short = { i : {} for i, _ in enumerate(tm_indices[chain_id]) }
@@ -791,6 +818,10 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
                 structures_shorts[chain_id] = full_short
 
 
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
+
     return { 
             "records" : records, 
             "records_shorts" : records_shorts, 
@@ -800,33 +831,35 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
                     
 #### PERIPHERAL PROTEINS ####
 
-def binarize_peripheral(logger, pdb_struct, close_margin, outer_margin):
+def binarize_peripheral(logger, pdb_struct, close_margin, outer_margin, verbose = False) -> dict:
+    
+    log_messages = []
 
     near_membrane_binaries = { chain_id: "" for chain_id in pdb_struct["CA"].keys() }
 
-    logger.info(f"Processing {pdb_struct['protein_name']} ...")
-    logger.info(f"Chains : {pdb_struct['CA'].keys()}")
+    log_messages.append(f"Processing {pdb_struct['protein_name']} ...")
+    log_messages.append(f"Chains : {pdb_struct['CA'].keys()}")
     
     for chain_id, residues in pdb_struct["CA"].items():
 
         Z = [ float(pdb_struct["CA"][chain_id][res_number]["coord"][2]) for res_number in pdb_struct["CA"][chain_id] ]
 
-        z_mean = np.mean(Z)
+        z_median = np.median(Z)
 
         z_membrane = pdb_struct["membrane_coord"][:, 2]
         
         min_z_membrane = np.min(z_membrane)
         max_z_membrane = np.max(z_membrane)
 
-        logger.info(f"Binarizing chain {chain_id} ...")
+        log_messages.append(f"Binarizing chain {chain_id} ...")
         last_res_number = list(residues.keys())[0] -1
-        logger.info(f"First residue number : {last_res_number}")
+        log_messages.append(f"First residue number : {last_res_number}")
 
-        # The proteins are outside the membrane, to it.
+        # The proteins are outside the membrane
         # Are they on the cytolic side or the extracellular side ?
         # We check using the mean of the z coordinates of the protein
         # compared to the min and max z coordinates of the membrane
-        if min_z_membrane > z_mean: 
+        if min_z_membrane > z_median: 
 
             for current_res_number, data in residues.items():
 
@@ -862,7 +895,7 @@ def binarize_peripheral(logger, pdb_struct, close_margin, outer_margin):
 
                 last_res_number = int(current_res_number)
 
-        if min_z_membrane < z_mean:
+        if min_z_membrane < z_median:
 
             for current_res_number, data in residues.items():
 
@@ -875,7 +908,6 @@ def binarize_peripheral(logger, pdb_struct, close_margin, outer_margin):
 
                     # Fill in the gaps with zeros, by default
                     near_membrane_binaries[chain_id] += "0" * (int(current_res_number) - last_res_number - 1)
-
 
                 z = float(z)
                 max_z_membrane = float(max_z_membrane)
@@ -899,7 +931,12 @@ def binarize_peripheral(logger, pdb_struct, close_margin, outer_margin):
 
                 last_res_number = int(current_res_number)
                 
-        logger.info(f"Binary membrane for chain {chain_id} : {near_membrane_binaries[chain_id]}")
+        log_messages.append(f"Binary membrane for chain {chain_id} : {near_membrane_binaries[chain_id]}")
+        
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
+    
 
     return near_membrane_binaries
 
@@ -914,7 +951,7 @@ def search_peripheral_segments(logger, chain_binaries, min_segment_length) -> di
     
     Returns:
         - dict: Dictionary where keys are chain_ids and values are lists of tuples (start, end) 
-                representing the peripheral segments to extract
+                representing the peripheral segments to extract. One tuple per peripheral segment
     """
 
     segments = {}
@@ -928,13 +965,16 @@ def search_peripheral_segments(logger, chain_binaries, min_segment_length) -> di
 
     return segments
 
-def elongate_peripheral_segments(logger, segments, iorf_path = None, iorf_csv = None, min_length = 20, max_length = 70):
+def elongate_peripheral_segments(logger, segments, iorf_path = None, iorf_csv = None, min_length = 20, max_length = 70, verbose = False):
     
     """
     
-    
+    For each peripheral segment of the protein, check draw a length of the distribution given by iorfs csv or fasta
+    Elongate the segment on N-ter and C-ter based on the drawn length  
     
     """
+    
+    log_messages = []
 
     for chain_id in segments:
 
@@ -964,6 +1004,9 @@ def elongate_peripheral_segments(logger, segments, iorf_path = None, iorf_csv = 
 
                     segments[chain_id][i] = (new_start, new_end, start, end)
 
+    if verbose:
+        
+        logger.info("\n".join(log_messages))
 
     return 0 
 
@@ -997,7 +1040,7 @@ def compute_orientation(P1, P2):
 
     return theta_degrees
 
-def extract_horizontal_alpha_helix(logger, pdb_struct, checking_depth = 3, min_length = 10, gaps = 1):
+def extract_horizontal_alpha_helix(logger, pdb_struct, checking_depth = 3, min_length = 10, gaps = 1, verbose = False) -> SeqRecord:
 
     """
     This function extracts alpha helices from a PDB structure.
@@ -1016,12 +1059,14 @@ def extract_horizontal_alpha_helix(logger, pdb_struct, checking_depth = 3, min_l
     the most horizontal || the closest to the membrane idk yet ?? 
     /!\
     """
+    
+    log_messages = []
 
     helices = []
     protein_name = pdb_struct["protein_name"]
     start, end = None, None
 
-    logger.info(f"Processing {protein_name}")
+    log_messages.append(f"Processing {protein_name}")
 
     for chain_id in pdb_struct["CA"]:
 
@@ -1077,12 +1122,12 @@ def extract_horizontal_alpha_helix(logger, pdb_struct, checking_depth = 3, min_l
         if len(helices) == 1:
 
             record = SeqRecord(Seq(helices[0][2]), id=f"{protein_name}", description="")
-            logger.info(f"Only one sequence extracted : {record}")
+            log_messages.append(f"Only one sequence extracted : {record}")
 
         # Search for the most horizontal and closest to the membrane alpha helix
         elif len(helices) > 1:
 
-            logger.info(f"Several sequences found : {helices}")
+            log_messages.append(f"Several sequences found : {helices}")
 
             for i, (start, end, sequence) in enumerate(helices):
 
@@ -1104,8 +1149,12 @@ def extract_horizontal_alpha_helix(logger, pdb_struct, checking_depth = 3, min_l
 
         else:
                 
-            logger.info(f"No alpha helix found in {protein_name}")
+            log_messages.append(f"No alpha helix found in {protein_name}")
             return None
+        
+    if verbose: 
+        
+        logger.info("\n".join(log_messages))
 
     return record
 

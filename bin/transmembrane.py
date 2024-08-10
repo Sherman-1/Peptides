@@ -10,39 +10,32 @@ from collections import defaultdict
 from pathlib import Path
  
 
-from utils import read_pdb, binarize_transmembrane, define_tm_segments, elongate_tm_segments, extract_elongated_sequences_v2
-from utils import setup_logger, exception_catcher, ascii_separator, format_pdb_line, generate_pdb
+from .utils import read_pdb, binarize_transmembrane, define_tm_segments, elongate_tm_segments, extract_elongated_sequences_v2
+from .utils import setup_logger, exception_catcher, ascii_separator, format_pdb_line, generate_pdb
 
 
 transmembrane_logger = setup_logger('transmembrane_logger', 'transmembrane.log')
 
 @exception_catcher(logging.getLogger('transmembrane_logger'))
-def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min_length, max_length, gaps, iorf_path, csv_path ):
-
-    random.seed(random.randint(0,1000))
-
-    transmembrane_logger.info("Starting transmembrane")
+def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min_length, max_length, gaps, iorf_path, csv_path, verbose = False ):
     
-    pdb_struct = read_pdb(logger = transmembrane_logger,file_path = file_path, secondary_structure_path = secondary_structure_path)
-    protein_name = pdb_struct["protein_name"]
+    try:
 
-    transmembrane_logger.info(f"{ascii_separator}")
+        pdb_struct = read_pdb(logger = transmembrane_logger,file_path = file_path, secondary_structure_path = secondary_structure_path, verbose = verbose)
 
-    in_membrane_binaries, _ = binarize_transmembrane(transmembrane_logger, pdb_struct, margin, inner_margin)
+        in_membrane_binaries, _ = binarize_transmembrane(transmembrane_logger, pdb_struct, margin, inner_margin, verbose)
 
-    transmembrane_logger.info(f"{ascii_separator}")
+        tm_indices = define_tm_segments(transmembrane_logger,in_membrane_binaries, pdb_struct, verbose)
 
-    tm_indices = define_tm_segments(transmembrane_logger,in_membrane_binaries, pdb_struct)
+        elongate_tm_segments(transmembrane_logger, tm_indices, pdb_struct, iorf_path, csv_path, min_length, max_length, verbose)
 
-    transmembrane_logger.info(f"{ascii_separator}")
-
-    elongate_tm_segments(transmembrane_logger, tm_indices, pdb_struct, iorf_path, csv_path, min_length, max_length)
-
-    transmembrane_logger.info(f"{ascii_separator}")
-
-    res_dict = extract_elongated_sequences_v2(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps)
-       
-    return res_dict
+        res_dict = extract_elongated_sequences_v2(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
+        
+        return res_dict
+    
+    except Exception as e:
+        
+        return None
 
 
 def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, margin: int, inner_margin: int, 
@@ -115,7 +108,7 @@ def main():
                                                                                                             iorf_path  = None, 
                                                                                                             csv_path = args.csv)
                 
-        print([len(record.seq) for record in sequences])
+        print(sequences)
 
     elif args.input_files:
 

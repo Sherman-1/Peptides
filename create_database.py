@@ -30,6 +30,7 @@
 
 import polars as pl 
 from bin.peripheral import peripheral
+from bin.transmembrane import transmembrane
 from pathlib import Path
 from Bio import SeqIO
 from tqdm import tqdm
@@ -82,69 +83,74 @@ def write_pdb_files(structures: dict, category : str, length : str) -> int:
 
 metadata = (
 
-    pl.read_csv("/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/input/proteins-2024-05-07.csv", separator = ",", infer_schema_length = 20000)
+    pl.read_csv("input/proteins-2024-05-07.csv", separator = ",", infer_schema_length = 20000)
     .with_columns(
         pl.concat_str([
-                pl.lit("/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/input/OPM_database"),
+                pl.lit("input/OPM"),
                 pl.concat_str([pl.col("pdbid"), pl.lit(".pdb")], separator = "")           
             ], separator = "/",
         ).alias("pdb_path")
     )
 )
 
-## FILTERS                                                     
+## FILTERS ## 
 
-# Bitopics 
-bitopics = (
 
-    # Annotated bitopic proteins, put threshold of 20 to avoid some false positives
-    ((pl.col("classtype_id") == 11) & (pl.col("thickness") >= 20)) | 
-    # All peptides that are crossing the membrane ( > 20 ), regardless of their folding type
-    ((pl.col("type_id") == 3) & (pl.col("thickness") >= 20)) |
-    # Multitopic proteins to be cut 
-    (pl.col("classtype_id") == 1) & (pl.col("thickness") >= 20)
+# Annotated bitopic proteins, put threshold of 20 to avoid some false positives
+bitopic_proteins = ((pl.col("classtype_id") == 11) & (pl.col("thickness") >= 20)) 
 
-) 
+# All peptides that are crossing the membrane ( > 20 ), regardless of their folding type
+bitopic_peptides = ((pl.col("type_id") == 3) & (pl.col("thickness") >= 20)) 
+# Multitopic proteins to be cut 
+polytopic_proteins = (pl.col("classtype_id") == 1) & (pl.col("thickness") >= 20)
 
-# Peripherals 
-peripherals = (
 
-    # Some "peripheral" proteins are anchored to the mb through lipidation, empirical threshold of 12, we don't want them
-    # Although we might miss through candidates between 12 and 20 
-    (pl.col("type_id") == 2) & (pl.col("thickness") <= 12) |
-    # All peptides that are not beta-helical or non-regular and that are not crossing the membrane
-    ((pl.col("classtype_id") == 7) & (pl.col("classtype_id") == 9) & (pl.col("thickness") < 20)) |
-    # Mis-annotated bitopic proteins
-    ((pl.col("classtype_id") == 11) & (pl.col("thickness") < 20))
-
-)
-
-peripherals_path = metadata.filter(peripherals).select("pdb_path").to_series().to_list()[:100]
-bitopics_path = metadata.filter(bitopics).select("pdb_path").to_series().to_list()
-
-if __name__ == "__main__":
-        
-    nb_extracted_segments = []
-    for inner_margin in tqdm(range(1,31), desc = "Margin", leave = False):
-        
-        MARGIN = inner_margin + 10
-        
-        counter = 0
-
-        periphs_args = [(path, MARGIN, inner_margin, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, iORF_csv, iORF_csv, GAPS) for path in peripherals_path]
-
-        with multiprocessing.Pool(processes = 30) as pool:
-
-            results = [ res for res in pool.starmap(peripheral, periphs_args) if type(res) == dict ]
-            
-            
-        counter += sum([len(res) for res in results])
-        
-        nb_extracted_segments.append(counter)
+# Some "peripheral" proteins are anchored to the mb through lipidation, empirical threshold of 12, we don't want them
+# Although we might miss through candidates between 12 and 20 
+peripheral_proteins = (pl.col("type_id") == 2) & (pl.col("thickness") <= 12) 
     
+# All peptides that are not beta-helical or non-regular and that are not crossing the membrane
+peripheral_peptides = ((pl.col("classtype_id") == 7) & (pl.col("classtype_id") == 9) & (pl.col("thickness") < 20)) 
+
+horizontal_peripheral_peptides = peripheral_peptides & (pl.col("tilt") > 75)
     
-    print(nb_extracted_segments)
+# Mis-annotated bitopic proteins
+misannotated_proteins = ((pl.col("classtype_id") == 11) & (pl.col("thickness") < 20))
+
+
+## PATHS ##
+
+tm_paths = {
+    
+    "bitopic_proteins" : metadata.filter(bitopic_proteins)["pdb_path"].to_list(),
+    "bitopic_peptides" : metadata.filter(bitopic_peptides)["pdb_path"].to_list(),
+    "polytopic_proteins" : metadata.filter(polytopic_proteins)["pdb_path"].to_list()
+}
+
+peripheral_paths = { 
+                    
+    "peripheral_proteins" : metadata.filter(peripheral_proteins)["pdb_path"].to_list(),
+    "peripheral_peptides" : metadata.filter(peripheral_peptides)["pdb_path"].to_list(),
+    "horizontal_peripheral_peptides" : metadata.filter(horizontal_peripheral_peptides)["pdb_path"].to_list(),
+    "misannotated_proteins" : metadata.filter(misannotated_proteins)["pdb_path"].to_list()
+}
+
+
+if __name__ == "__main__":  
+
+    n_cpus = multiprocessing.cpu_count() - 1
+
+    pool = multiprocessing.Pool(processes=n_cpus)
+
+    for category, paths in tqdm(tm_paths.items(), desc = "transmembrane proteins", leave = False):
         
+        print(f'Processing {category} category')
+        
+        args = [(path, MARGIN, INNER_MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, GAPS, iORF_csv, iORF_csv, False) for path in paths]
+        
+        results = pool.starmap(transmembrane, args)
+        
+    
     
 
 
