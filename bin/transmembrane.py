@@ -18,28 +18,24 @@ transmembrane_logger = setup_logger('transmembrane_logger', 'transmembrane.log')
 
 @exception_catcher(logging.getLogger('transmembrane_logger'))
 def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min_length, max_length, gaps, iorf_path, csv_path, verbose = False ):
-    
-    try:
-
-        pdb_struct = read_pdb(logger = transmembrane_logger,file_path = file_path, secondary_structure_path = secondary_structure_path, verbose = verbose)
-
-        in_membrane_binaries, _ = binarize_transmembrane(transmembrane_logger, pdb_struct, margin, inner_margin, verbose)
-
-        tm_indices = define_tm_segments(transmembrane_logger,in_membrane_binaries, pdb_struct, verbose)
-
-        elongate_tm_segments(transmembrane_logger, tm_indices, pdb_struct, iorf_path, csv_path, min_length, max_length, verbose)
-
-        res_dict = extract_elongated_sequences_v2(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
         
-        return res_dict
+    pdb_struct = read_pdb(logger = transmembrane_logger,file_path = file_path, secondary_structure_path = secondary_structure_path, verbose = verbose)
+
+    in_membrane_binaries, _ = binarize_transmembrane(transmembrane_logger, pdb_struct, margin, inner_margin, verbose)
+
+    tm_indices = define_tm_segments(transmembrane_logger,in_membrane_binaries, pdb_struct, verbose)
+
+    elongate_tm_segments(transmembrane_logger, tm_indices, pdb_struct, iorf_path, csv_path, min_length, max_length, verbose)
+
+    res_dict = extract_elongated_sequences_v2(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
     
-    except Exception as e:
-        
-        return None
+    return res_dict
+    
+
 
 
 def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, margin: int, inner_margin: int, 
-                     min_length: int, max_length: int, gaps: int, iorf_path: str, csv_path: str) -> None:
+                     min_length: int, max_length: int, gaps: int, iorf_path: str, csv_path: str, verbose : bool) -> None:
 
     protein_name = os.path.basename(pdb_path).split(".")[0]
     sequences = []
@@ -54,7 +50,8 @@ def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, mar
                                  max_length=max_length, 
                                  gaps=gaps,
                                  iorf_path=iorf_path,
-                                 csv_path=csv_path)
+                                 csv_path=csv_path, 
+                                 verbose=verbose)
         
         sequences.extend(res_dict["records"])
         sequences_short.extend(res_dict["records_shorts"])
@@ -85,6 +82,7 @@ def main():
                         type=int,
                         help = "Distance to artificially reduce the membrane width to capture more amino acids as out-of-membrane", 
                         default = 0)
+    parser.add_argument("--verbose", help = "Verbose mode", action = "store_true", default = False)
     parser.add_argument("--gaps", type=int, help = "Minimum number of missing AA in a segment to discard it", default = 1)
     parser.add_argument("--output", help = "Output file", default = sys.stdout)
     i_opts = parser.add_mutually_exclusive_group(required=True)
@@ -106,9 +104,11 @@ def main():
                                                                                                             max_length = args.max_length, 
                                                                                                             gaps = args.gaps,
                                                                                                             iorf_path  = None, 
-                                                                                                            csv_path = args.csv)
+                                                                                                            csv_path = args.csv,
+                                                                                                            verbose = args.verbose)
                 
         print(sequences)
+        print([len(record.seq) for record in sequences])
 
     elif args.input_files:
 

@@ -35,25 +35,20 @@ from pathlib import Path
 from Bio import SeqIO
 from tqdm import tqdm
 import os
+import shutil
 
-import multiprocessing
 
-MARGIN = 50
 MIN_LENGTH = 20
 MAX_LENGTH = 70
 MIN_SEGMENT_LENGTH = 15
 INNER_MARGIN = 0
+CLOSE_MARGIN = 5
+MARGIN = 20
 GAPS = 1
-iORF_csv = "input/iORFs.csv"
+IORF_CSV = "input/iORFs.csv"
 
 
-def write_pdb_files(structures: dict, category : str, length : str) -> int:
-
-    curr_dir = os.getcwd()
-
-    writing_dir = Path(os.path.join(curr_dir, "pdbs", category, length))
-
-    writing_dir.mkdir(parents=True, exist_ok=True)
+def write_pdb_files(structures: dict, length : str, writing_dir : str) -> int:
 
     for protein_name, struct_dict in structures.items():
         for chain_id, segment_dict in struct_dict.items():
@@ -136,19 +131,114 @@ peripheral_paths = {
 }
 
 
-if __name__ == "__main__":  
+## SETUP RESULTS DIRECTORY ##
 
-    n_cpus = multiprocessing.cpu_count() - 1
+results_dir = Path("results")
+results_dir.mkdir(parents=True, exist_ok=True)
 
-    pool = multiprocessing.Pool(processes=n_cpus)
+# If there are subdirectories, remove them
 
-    for category, paths in tqdm(tm_paths.items(), desc = "transmembrane proteins", leave = False):
+for sub_dir in results_dir.iterdir():
+    
+    shutil.rmtree(sub_dir)
+
+
+## TRANSMEMBRANE ##
+
+i = 0
+pbar = tqdm(tm_paths.items(), total = len(tm_paths), leave = False)
+
+for category, pdb_paths in pbar:
+    
+    pbar.set_description(f"Processing {category}")
+    
+    category_dir = Path(f"results/{category}")
+    category_dir.mkdir(parents=True, exist_ok=True)
+    
+    Path(category_dir / "pdb").mkdir(parents=True, exist_ok=True)
+    Path(category_dir / "fasta").mkdir(parents=True, exist_ok=True)
+    
+    sub_pbar = tqdm(pdb_paths, leave = False, total = len(pdb_paths))
+    
+    i = 0
+    
+    structures = {}
         
-        print(f'Processing {category} category')
+    for pdb_path in sub_pbar:
         
-        args = [(path, MARGIN, INNER_MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, GAPS, iORF_csv, iORF_csv, False) for path in paths]
+        try:
         
-        results = pool.starmap(transmembrane, args)
+            sub_pbar.set_description(f"Processing {pdb_path}")
+            
+            protein_name = os.path.basename(pdb_path).split(".")[0]
+            
+            # transmembrane(file_path, secondary_structure_path, margin, inner_margin, min_length, max_length, gaps, iorf_path, csv_path, verbose = False ):
+            
+            result = transmembrane(pdb_path, None, MARGIN, INNER_MARGIN, MIN_LENGTH, MAX_LENGTH, GAPS, IORF_CSV, False)
+            
+            structures[protein_name] = result["structures"]
+            
+            SeqIO.write(result["records"], f"{category_dir}/fasta/{protein_name}_long.fasta", "fasta")
+            
+        except Exception as e:
+                
+            continue
+
+        
+    write_pdb_files(structures, "long", f"{category_dir}/pdb")
+    
+pbar.close()
+
+pbar = tqdm(peripheral_paths.items(), total = len(peripheral_paths), leave = False)
+
+for category, pdb_paths in pbar:
+    
+    pbar.set_description(f"Processing {category}")
+    
+    category_dir = Path(f"results/{category}")
+    category_dir.mkdir(parents=True, exist_ok=True)
+    
+    Path(category_dir / "pdb").mkdir(parents=True, exist_ok=True)
+    Path(category_dir / "fasta").mkdir(parents=True, exist_ok=True)
+    
+    sub_pbar = tqdm(pdb_paths, leave = False, total = len(pdb_paths))
+    
+    i = 0
+    
+    structures = {}
+        
+    for pdb_path in sub_pbar:
+        
+        try:
+        
+            sub_pbar.set_description(f"Processing {pdb_path}")
+            
+            protein_name = os.path.basename(pdb_path).split(".")[0]
+            
+            # peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):    
+                    
+            result = peripheral(pdb_path, CLOSE_MARGIN, MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, IORF_CSV, None, GAPS, False)
+                            
+            structures[protein_name] = result["structures"]
+            
+            SeqIO.write(result["records"], f"{category_dir}/fasta/{protein_name}_long.fasta", "fasta")
+            
+        except Exception as e:
+                
+            continue
+
+        
+    write_pdb_files(structures, "long", f"{category_dir}/pdb")
+        
+        
+        
+        
+        
+
+    
+    
+    
+
         
     
     

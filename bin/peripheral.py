@@ -12,22 +12,20 @@ peripheral_logger = setup_logger('peripheral_logger', 'transmembrane.log')
 @exception_catcher(logging.getLogger('transmembrane_logger'))
 def peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):
     
-    try:
-        pdb_struct = read_pdb(peripheral_logger,pdb_path, verbose)
 
-        chain_binaries = binarize_peripheral(peripheral_logger, pdb_struct, close_margin, outer_margin, verbose)
+    pdb_struct = read_pdb(peripheral_logger,pdb_path, verbose)
 
-        segments = search_peripheral_segments(peripheral_logger,chain_binaries, min_segment_length)
+    chain_binaries = binarize_peripheral(peripheral_logger, pdb_struct, close_margin, outer_margin, verbose)
 
-        elongate_peripheral_segments(peripheral_logger, segments, iorf_fasta, iorf_csv, min_length, max_length, verbose)
+    segments = search_peripheral_segments(peripheral_logger,chain_binaries, min_segment_length)
 
-        res_dict = extract_elongated_sequences_v2(peripheral_logger,segments, pdb_struct, gaps, verbose)
+    elongate_peripheral_segments(peripheral_logger, segments, iorf_fasta, iorf_csv, min_length, max_length, verbose)
 
-        return res_dict
+    res_dict = extract_elongated_sequences_v2(peripheral_logger,segments, pdb_struct, gaps, verbose)
+
+    return res_dict
     
-    except Exception as e:
-        
-        raise 1
+
 
 
 def main():

@@ -662,23 +662,22 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                 # Randomly determine the amount of elongation downstream and upstream ( Nter and Cter )
                 downstream = random.randint(0, elongation_needed)
                 upstream = elongation_needed - downstream
-                log_messages.append(f"Chain {chain_id}, segment {i}\n"
-                            f"Old start to old end : {current_start} to {current_end}\n"
-                            f"Desired length: {desired_length}\n"
-                            f"Current length: {length_current}\n"
-                            f"Upstream elongation: {upstream}\n"
-                            f"Downstream elongation: {downstream}\n")
-                
                 # Calculate new coordinates
                 # Out of bound new coordinates will be treated as Xs in the future 
                 # sequence and will be removed by trimming
-                new_end_coordinates = current_end + downstream
-                new_start_coordinates = current_start - upstream
-                
-                log_messages.append(f"new start variables : current start {current_start} upstream {upstream} => {current_start - upstream}\n"
-                            f"new end variables : current end {current_end} downstream {downstream} chain length {chain_length} => {min(current_end + downstream, chain_length)}\n"
+                new_end_coordinates = min(chain_length,current_end + downstream)
+                new_start_coordinates = max(0,current_start - upstream)
+                log_messages.append(
+                            f"Old start to old end : {current_start} to {current_end}\n"
+                            f"Desired length: {desired_length}\n"
+                            f"Current length: {length_current}\n"
+                            f"Elongation needed: {elongation_needed}\n"
+                            f"Upstream elongation: {upstream}\n"
+                            f"Downstream elongation: {downstream}\n" 
+                            f"new start variables ( upstream ) : current start {current_start} - upstream {upstream} => {current_start - upstream}\n"
+                            f"new end variables  ( downstream ): min(current end {current_end} + downstream {downstream}, chain length {chain_length}) => {min(current_end + downstream, chain_length)}\n"
                             f"new start result : {new_start_coordinates}\n"
-                            f"new end result : {new_end_coordinates}")
+                            f"new end result : {new_end_coordinates}\n")
                 
                 if current_start < new_start_coordinates:
                     
