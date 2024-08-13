@@ -10,8 +10,8 @@ from collections import defaultdict
 from pathlib import Path
  
 
-from .utils import read_pdb, binarize_transmembrane, define_tm_segments, elongate_tm_segments, extract_elongated_sequences_v2
-from .utils import setup_logger, exception_catcher, ascii_separator, format_pdb_line, generate_pdb
+from utils import read_pdb, binarize_transmembrane, define_tm_segments, elongate_tm_segments, extract_elongated_sequences_v3
+from utils import setup_logger, exception_catcher, ascii_separator, format_pdb_line, generate_pdb
 
 
 transmembrane_logger = setup_logger('transmembrane_logger', 'transmembrane.log')
@@ -27,7 +27,7 @@ def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min
 
     elongate_tm_segments(transmembrane_logger, tm_indices, pdb_struct, iorf_path, csv_path, min_length, max_length, verbose)
 
-    res_dict = extract_elongated_sequences_v2(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
+    res_dict = extract_elongated_sequences_v3(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
     
     return res_dict
     
@@ -96,7 +96,7 @@ def main():
         
         protein_name = os.path.basename(args.input).split(".")[0]
 
-        sequences, sequences_short, structure, structure_short, protein_name = process_transmembrane_file(pdb_path = args.input,
+        sequences, sequences_short, structures, structure_shorts, protein_name = process_transmembrane_file(pdb_path = args.input,
                                                                                                             secondary_structure_path = None,
                                                                                                             margin = args.margin, 
                                                                                                             inner_margin = args.inner_margin, 
@@ -108,7 +108,27 @@ def main():
                                                                                                             verbose = args.verbose)
                 
         print(sequences)
-        print([len(record.seq) for record in sequences])
+        for chain_id, segment_dict in structures.items():
+            if not segment_dict:
+                continue
+            for segment_id, residue_dict in segment_dict.items():
+                if not residue_dict:
+                    continue    
+                lines = []
+                try:
+                    for res_number, atom_dict in residue_dict.items():
+                        for atom_number, atom_line in atom_dict.items():
+                            lines.append(atom_line)
+
+                except Exception as e:
+                    print(f"Error writing pdb {protein_name}_{chain_id}_{segment_id}: {e}")
+
+                if lines:
+                    file_name = f"{protein_name}_{chain_id}_{segment_id}.pdb"
+                    file_path = f"./{file_name}"
+
+                    with open(file_path, "w") as output:
+                        output.write("".join(lines)) # Lines are already \n terminated
 
     elif args.input_files:
 

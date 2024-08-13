@@ -827,6 +827,123 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
             "structures" : structures, 
             "structures_shorts" : structures_shorts 
         }
+    
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+def extract_elongated_sequences_v3(logger, tm_indices : dict, pdb_struct : dict, gaps : int = 1, verbose = False) -> dict:
+
+    log_messages = []
+
+    records = []
+    records_shorts = []
+    structures = { chain_id : {} for chain_id in tm_indices }
+    structures_shorts = { chain_id : {} for chain_id in tm_indices }
+    protein_name = pdb_struct["protein_name"]
+
+    log_messages.append(f"Extracting elongated sequences ... \nShape of input : {tm_indices.keys()}")
+    
+    # Iterate per chain
+    for chain_id in tm_indices:
+
+        log_messages.append(f"Iterating over chain {chain_id} indices : ")
+        log_messages.append(f"Indices : {tm_indices[chain_id]}")
+
+        # Iterate per segment for the current chain
+        for i, (start, end, old_start, old_end) in enumerate(tm_indices[chain_id]):
+
+            sequence = ""
+            sequence_short = ""
+
+            # Create the key for this segment based on the FASTA record name
+            fasta_key = f"{protein_name}_{chain_id}_{i+1}_elong"
+            fasta_key_short = f"{protein_name}_{chain_id}_{i+1}_short"
+            
+            full = {}
+            full_short = {}
+
+            # Go backward from the beginning of the segment in the membrane 
+            # To the beginning of the elongated segment
+            for res_number in range(old_start-1, start, -1):
+
+                if res_number in pdb_struct["CA"][chain_id]:
+                    
+                    res = pdb_struct["CA"][chain_id][res_number]["res_name"]
+                    # Store all info for atoms of this residue 
+                    buffer = { atom_number : data for atom_number, data in pdb_struct["full"][chain_id][res_number].items() }
+
+                    if pdb_struct["CA"][chain_id][res_number]["in_margin"] == "0":
+                        break
+
+                    sequence += res
+                    full[res_number] = buffer
+
+                else:
+                    # Elongate until an unknown residue is found
+                    break
+
+            # We extracted the sequence backward, we need to reverse it
+            sequence = sequence[::-1]
+
+            # Iterate from the beginning of the original segment to the end of the original segment
+            for res_number in range(old_start, old_end+1):
+
+                if res_number in pdb_struct["CA"][chain_id]:
+
+                    res = pdb_struct["CA"][chain_id][res_number]["res_name"]
+                    buffer = { atom_number : data for atom_number, data in pdb_struct["full"][chain_id][res_number].items() }
+
+                    sequence += res
+                    full[res_number] = buffer
+                    sequence_short += res
+                    full_short[res_number] = buffer
+
+                else:
+                    sequence += "X"
+                    full[res_number] = "X"
+                    sequence_short += "X"
+                    full_short[res_number] = "X"
+
+            # Iterate from the end of the original segment to the end of the elongated segment
+            for res_number in range(old_end+1, end+1):
+
+                if res_number in pdb_struct["CA"][chain_id]:
+
+                    res = pdb_struct["CA"][chain_id][res_number]["res_name"]
+                    buffer = { atom_number : data for atom_number, data in pdb_struct["full"][chain_id][res_number].items() }
+
+                    if pdb_struct["CA"][chain_id][res_number]["in_margin"] == "0":
+                        break
+
+                    sequence += res
+                    full[res_number] = buffer
+
+                else:
+                    break
+
+            sequence = sequence.strip("X")
+            sequence_short = sequence_short.strip("X")
+
+            if (not "X" * gaps in sequence) and (sequence != ""):
+                record = SeqRecord(Seq(sequence), id=fasta_key, description=f"")
+                records.append(record)
+                structures[chain_id][fasta_key] = full
+
+            if (not "X" * gaps in sequence_short) and (sequence_short != ""):
+                record_short = SeqRecord(Seq(sequence_short), id=fasta_key_short, description=f"")
+                records_shorts.append(record_short)
+                structures_shorts[chain_id][fasta_key_short] = full_short
+
+    if verbose:
+        logger.info("\n".join(log_messages))
+
+    return { 
+            "records" : records, 
+            "records_shorts" : records_shorts, 
+            "structures" : structures, 
+            "structures_shorts" : structures_shorts 
+        }
+
                     
 #### PERIPHERAL PROTEINS ####
 
