@@ -31,6 +31,7 @@
 import polars as pl 
 from bin.peripheral import peripheral
 from bin.transmembrane import transmembrane
+from bin.MMseqs import MMseqs2API
 from pathlib import Path
 from Bio import SeqIO
 from tqdm import tqdm
@@ -50,28 +51,26 @@ IORF_CSV = "input/iORFs.csv"
 
 def write_pdb_files(structures: dict, length : str, writing_dir : str) -> int:
 
-    for protein_name, struct_dict in structures.items():
-        for chain_id, segment_dict in struct_dict.items():
-            if not segment_dict:
-                continue
-            for segment_id, residue_dict in segment_dict.items():
-                if not residue_dict:
-                    continue    
-                lines = []
-                try:
-                    for res_number, atom_dict in residue_dict.items():
-                        for atom_number, atom_line in atom_dict.items():
-                            lines.append(atom_line)
+   
+    for segment_id, residue_dict in structures.items():
+        
+        if not residue_dict:
+            continue    
+        lines = []
+        try:
+            for res_number, atom_dict in residue_dict.items():
+                for atom_number, atom_line in atom_dict.items():
+                    lines.append(atom_line)
 
-                except Exception as e:
-                    print(f"Error writing pdb {protein_name}_{chain_id}_{segment_id}: {e}")
+        except Exception as e:
+            print(f"Error writing pdb {protein_name}_{chain_id}_{segment_id}: {e}")
 
-                if lines:
-                    file_name = f"{protein_name}_{chain_id}_{segment_id}_{length}.pdb"
-                    file_path = f"{writing_dir}/{file_name}"
+        if lines:
+            file_name = f"{segment_id}_{length}.pdb"
+            file_path = f"{writing_dir}/{file_name}"
 
-                    with open(file_path, "w") as output:
-                        output.write("".join(lines)) # Lines are already \n terminated
+            with open(file_path, "w") as output:
+                output.write("".join(lines)) # Lines are already \n terminated
 
     return 0
 
@@ -145,24 +144,21 @@ for sub_dir in results_dir.iterdir():
 
 ## TRANSMEMBRANE ##
 
-i = 0
 pbar = tqdm(tm_paths.items(), total = len(tm_paths), leave = False)
 
+structures = {}
+sequences = {}
 for category, pdb_paths in pbar:
     
     pbar.set_description(f"Processing {category}")
-    
-    category_dir = Path(f"results/{category}")
-    category_dir.mkdir(parents=True, exist_ok=True)
-    
-    Path(category_dir / "pdb").mkdir(parents=True, exist_ok=True)
-    Path(category_dir / "fasta").mkdir(parents=True, exist_ok=True)
     
     sub_pbar = tqdm(pdb_paths, leave = False, total = len(pdb_paths))
     
     i = 0
     
-    structures = {}
+    structures[category] = {}
+    sequences[category] = []
+
         
     for pdb_path in sub_pbar:
         
@@ -176,18 +172,27 @@ for category, pdb_paths in pbar:
             
             result = transmembrane(pdb_path, None, MARGIN, INNER_MARGIN, MIN_LENGTH, MAX_LENGTH, GAPS, IORF_CSV, False)
             
-            structures[protein_name] = result["structures"]
+            for chain_id, segment_dict in result["structures"].items():
+                for segment_id, residue_dict in segment_dict.items():
+                    structures[category].update({segment_id : residue_dict})
             
-            SeqIO.write(result["records"], f"{category_dir}/fasta/{protein_name}_long.fasta", "fasta")
+            sequences[category].extend(result["records"])
             
+            i += 1  
+            
+            if i == 1:
+                break # Debug
+                   
         except Exception as e:
-                
+            
+            print(f"Error processing {pdb_path}: {e}")
             continue
-
         
-    write_pdb_files(structures, "long", f"{category_dir}/pdb")
-    
+    SeqIO.write(sequences[category], f"tmp/{category}.fasta", "fasta")
+
 pbar.close()
+
+## PERIPHERAL ##
 
 pbar = tqdm(peripheral_paths.items(), total = len(peripheral_paths), leave = False)
 
@@ -195,18 +200,13 @@ for category, pdb_paths in pbar:
     
     pbar.set_description(f"Processing {category}")
     
-    category_dir = Path(f"results/{category}")
-    category_dir.mkdir(parents=True, exist_ok=True)
-    
-    Path(category_dir / "pdb").mkdir(parents=True, exist_ok=True)
-    Path(category_dir / "fasta").mkdir(parents=True, exist_ok=True)
-    
     sub_pbar = tqdm(pdb_paths, leave = False, total = len(pdb_paths))
+    
+    structures[category] = {}
+    sequences[category] = []
     
     i = 0
     
-    structures = {}
-        
     for pdb_path in sub_pbar:
         
         try:
@@ -215,28 +215,55 @@ for category, pdb_paths in pbar:
             
             protein_name = os.path.basename(pdb_path).split(".")[0]
             
-            # peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):    
-                    
-            result = peripheral(pdb_path, CLOSE_MARGIN, MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, IORF_CSV, None, GAPS, False)
-                            
-            structures[protein_name] = result["structures"]
+            # peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):
             
-            SeqIO.write(result["records"], f"{category_dir}/fasta/{protein_name}_long.fasta", "fasta")
+            result = peripheral(pdb_path, CLOSE_MARGIN, MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, IORF_CSV, None, GAPS, False)
+                        
+            for chain_id, segment_dict in result["structures"].items():
+                for segment_id, residue_dict in segment_dict.items():
+                    structures[category].update({segment_id : residue_dict})
+            
+            sequences[category].extend(result["records"])
+            
+            i += 1
+            
+            if i == 1:
+                break # Debug
             
         except Exception as e:
-                
+            
+            print(f"Error processing {pdb_path}: {e}")
             continue
+        
+    SeqIO.write(sequences[category], f"tmp/{category}.fasta", "fasta")
 
+pbar.close()
+
+coverage = [0.5, 0.7, 0.9]
+identity = [0.5, 0.7, 0.9]
+
+mmseqs = MMseqs2API()
+
+for cov in coverage: 
+    
+    for id in identity: 
         
-    write_pdb_files(structures, "long", f"{category_dir}/pdb")
-        
+        for category in sequences.keys():
+            
+            try:
+                
+                mmseqs.fasta2representativeseq(f"tmp/{category}.fasta", f"results/{category}_cov_{cov}_id_{id}", cov, id)
+                
+            except Exception as e:
+                
+                print(f"Error creating representatives for {category}: {e}")
+                continue
         
         
         
         
 
-    
-    
+
     
 
         

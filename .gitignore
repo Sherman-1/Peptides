@@ -25,7 +25,8 @@
 *.log
 *.sql
 *.sqlite
-input/
+input/Membranome/
+input/OPM/
 output/
 save/
 

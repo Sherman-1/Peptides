@@ -4,7 +4,7 @@ import argparse
 import logging 
 from Bio import SeqIO
 
-from .utils import read_pdb, binarize_peripheral, search_peripheral_segments, elongate_peripheral_segments, extract_elongated_sequences_v2
+from .utils import read_pdb, binarize_peripheral, search_peripheral_segments, elongate_peripheral_segments, extract_elongated_sequences_v2, extract_elongated_sequences_v3
 from .utils import setup_logger, exception_catcher
 
 peripheral_logger = setup_logger('peripheral_logger', 'transmembrane.log')
@@ -21,7 +21,7 @@ def peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min
 
     elongate_peripheral_segments(peripheral_logger, segments, iorf_fasta, iorf_csv, min_length, max_length, verbose)
 
-    res_dict = extract_elongated_sequences_v2(peripheral_logger,segments, pdb_struct, gaps, verbose)
+    res_dict = extract_elongated_sequences_v3(peripheral_logger,segments, pdb_struct, gaps, verbose)
 
     return res_dict
     
