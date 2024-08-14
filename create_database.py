@@ -227,7 +227,7 @@ for category, pdb_paths in pbar:
             
             i += 1
             
-            if i == 1:
+            if i == 100:
                 break # Debug
             
         except Exception as e:
@@ -242,7 +242,7 @@ pbar.close()
 coverage = [0.5, 0.7, 0.9]
 identity = [0.5, 0.7, 0.9]
 
-mmseqs = MMseqs2API()
+mmseqs = MMseqs2API(threads = max(os.cpu_count() - 2, 1), cleanup = True)
 
 for cov in coverage: 
     
@@ -258,6 +258,12 @@ for cov in coverage:
                 
                 print(f"Error creating representatives for {category}: {e}")
                 continue
+            
+            break   
+        
+        break
+    
+    break
         
         
         
