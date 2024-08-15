@@ -187,7 +187,17 @@ def get_embeddings( model, tokenizer, device, seqs, per_residue, per_protein,
 
 def main():
 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+
+        device = torch.device("cuda:0")
+
+    elif torch.backends.mps.is_available():
+
+        device = torch.device("mps")
+
+    else:
+
+        device = torch.device("cpu")
 
     if not torch.cuda.is_available():
         print("Warning: No GPU found")

@@ -4,9 +4,11 @@ import sys
 from pathlib import Path
 import shutil
 from Bio import SeqIO
+import argparse
+
 
 class MMseqs2API:
-    def __init__(self, threads, mmseqs2_path='/home/simon.herman/.local/bin/mmseqs/bin/mmseqs', cleanup=False):
+    def __init__(self, threads, mmseqs2_path='/opt/homebrew/bin/mmseqs', cleanup=False):
         self.mmseqs2_path = mmseqs2_path
         self.threads = threads
         self.cleanup = cleanup
@@ -67,7 +69,7 @@ class MMseqs2API:
         with open(self.dir / "result_seq_clu.tsv") as tsv:
             representatives = {line.split()[0] for line in tsv.readlines()}
             
-        print(f"Representatives: {representatives}")
+        print(f"Number of representatives : {len(representatives)}")
         #full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
         #representatives_fasta = [full_fasta[rep] for rep in representatives]
         #SeqIO.write(representatives_fasta, Path(writing_dir) / f"{fasta_file}.representatives.faa", "fasta")
@@ -76,14 +78,20 @@ class MMseqs2API:
 # Example usage
 if __name__ == '__main__':
 
-    mmseqs2_api = MMseqs2API(threads=40, cleanup=True)
+    mmseqs2_api = MMseqs2API(threads=os.cpu_count() - 2, cleanup=True)
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--fasta', help='Path to the input FASTA file')
+    parser.add_argument('--writing_dir', default = ".", help='Directory to write the representative sequences')
+    parser.add_argument('--cov', type=float, default = 0.5, help='Coverage threshold for clustering')
+    parser.add_argument('--iden', type=float, default = 0.5, help='Identity threshold for clustering')
+    parser.add_argument('--cov_mode', type=int, default=0, help='Coverage mode for clustering')
     
-    # Example file lists
-    fasta_file_single = '/store/EQUIPES/BIM/MEMBERS/paul.roginski/OLD/ORFPRED/new_data/disordered/DisProt_release_2023_06_CUT.faa'
+    args = parser.parse_args()
     
-    # Running the commands with a single file
-    mmseqs2_api.createdb(fasta_file_single)
-    mmseqs2_api.cluster(coverage=0.7, identity=0.4, cov_mode=0)
-    mmseqs2_api.createtsv()
+    mmseqs2_api.fasta2representativeseq(args.fasta, args.writing_dir, args.cov, args.iden, args.cov_mode)
     
+    
+
    
