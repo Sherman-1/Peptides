@@ -6,7 +6,7 @@ import shutil
 from Bio import SeqIO
 
 class MMseqs2API:
-    def __init__(self, mmseqs2_path='/home/simon.herman/.local/bin/mmseqs/bin/mmseqs', threads=1, cleanup=False):
+    def __init__(self, threads, mmseqs2_path='/home/simon.herman/.local/bin/mmseqs/bin/mmseqs', cleanup=False):
         self.mmseqs2_path = mmseqs2_path
         self.threads = threads
         self.cleanup = cleanup
@@ -66,9 +66,11 @@ class MMseqs2API:
         self.createtsv()
         with open(self.dir / "result_seq_clu.tsv") as tsv:
             representatives = {line.split()[0] for line in tsv.readlines()}
-        full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
-        representatives_fasta = [full_fasta[rep] for rep in representatives]
-        SeqIO.write(representatives_fasta, Path(writing_dir) / f"{fasta_file}.representatives.faa", "fasta")
+            
+        print(f"Representatives: {representatives}")
+        #full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
+        #representatives_fasta = [full_fasta[rep] for rep in representatives]
+        #SeqIO.write(representatives_fasta, Path(writing_dir) / f"{fasta_file}.representatives.faa", "fasta")
 
 
 # Example usage
