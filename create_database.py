@@ -222,7 +222,6 @@ def main():
                 fasta_path = param_paths / Path("fasta")
                 fasta_path.mkdir(exist_ok = True)
 
-
                 common_keys = set(representatives.keys()) & set(structures.keys())
 
                 representatives = { k : representatives[k] for k in common_keys }
@@ -235,7 +234,7 @@ def main():
                 wrong_keys = []
                 for key in common_keys:
 
-                    returned = write_pdb(structures[key], key, pdb)
+                    returned = write_pdb(structures[key], key, pdb_path)
 
                     if returned == 0:
 
@@ -246,7 +245,7 @@ def main():
                         print(f"Error writing pdb {key} : {returned}")
                         wrong_keys.append(key)
 
-                SeqIO.write(seq_to_write, f"{fasta}/{category}.fasta", "fasta")
+                SeqIO.write(seq_to_write, f"{fasta_path}/{category}.fasta", "fasta")
 
     pbar.close()
 
