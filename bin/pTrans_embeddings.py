@@ -72,11 +72,23 @@ def get_T5_model(device):
 
     return model, tokenizer
 
-def get_sequences(seq_path, max_seq):
+def get_sequences(seq_path, max_seq, min_length = 0, max_length = 1000):
 
     AA = { "A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y" }
 
-    _ = { record.id : str(record.seq.upper()) for record in SeqIO.parse(seq_path, "fasta") if set(record.seq.upper()) <= AA and 20 <= len(record.seq) <= 70 }
+    try:
+
+        f = open(seq_path)
+        f.close()
+        print("File found")
+
+    except Exception as e:
+
+        raise e("File {} not found".format(seq_path))
+         
+    _ = SeqIO.to_dict(SeqIO.parse(seq_path, "fasta"))
+
+    print(f"Sequences so far : {_}")
 
     if len(_) > max_seq:
 
@@ -93,7 +105,7 @@ def get_sequences(seq_path, max_seq):
     return seqs, max([len(seq) for seq in seqs.values()])
 
 def get_embeddings( model, tokenizer, device, seqs, per_residue, per_protein, 
-                   max_residues=4000, max_seq_len=1000, max_batch=100 ):
+                   max_residues=2000, max_seq_len=1000, max_batch=100 ):
 
     """
     # per_residue indicates that embeddings for each residue in a protein should be returned.
@@ -114,7 +126,7 @@ def get_embeddings( model, tokenizer, device, seqs, per_residue, per_protein,
     start = time.time()
     batch = list()
 
-    for seq_idx, (pdb_id, seq) in tqdm(enumerate(seq_dict,1), desc = "Batching sequences", total=len(seq_dict)):
+    for seq_idx, (pdb_id, seq) in tqdm(enumerate(seq_dict,1), desc = "Generating embeddings", total=len(seq_dict)):
         seq = seq
         seq_len = len(seq)
         seq = ' '.join(list(seq))
@@ -199,8 +211,6 @@ def main():
 
         device = torch.device("cpu")
 
-    if not torch.cuda.is_available():
-        print("Warning: No GPU found")
 
     print("Using device: {}".format(device))
 
@@ -208,43 +218,18 @@ def main():
     print("Loading model ...")
     model, tokenizer = get_T5_model(device)
 
-    categories = {
-
-        #"Small" : "../christos/out_small.faa",
-        #"Small" : "../christos/fastas/Small_christos.fasta",
-        #"Folded" : "../christos/fastas/Folded_christos.fasta",
-        #"Disordered" : "../christos/fastas/Disordered_christos.fasta",
-        #"Bound" : "/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/save/fasta/test.fasta",
-        "Bitopic_short" : "../save/fasta/bi_shorts.fasta",
-        "Bitopic_long" : "../save/fasta/bi_longs.fasta",
-        "Polytopic_short" : "../save/fasta/poly_shorts.fasta",
-        "Polytopic_long" : "../save/fasta/poly_longs.fasta",
-        
-
-    }
-
-    dfs = {}
     
-    for category, fasta in categories.items():
-        
-        print(f"\n############# Processing category : {category} #############")
+    fasta = "/Users/simonherman/Documents/I2BC/Peptides/orf_trans.fasta"
+    
 
-        sequences, max_protein_length = get_sequences(fasta, 5000)
+    sequences, max_protein_length = get_sequences(fasta, 500)
 
-        per_residue = False
-        per_protein = True
-        
-        print("\n ### Generating embeddings ###")
+    per_residue = False
+    per_protein = True
+    
+    print("\n ### Generating embeddings ###")
 
-        embeddings = get_embeddings(model, tokenizer, device, sequences, per_residue, per_protein, max_residues=4000, max_seq_len=max_protein_length, max_batch=100)
-
-        per_prot = embeddings["protein_embs"]
-
-        data = [ [id, *list(emb)] for id, emb in per_prot.items()]
-
-        dfs[category] =  pl.DataFrame(data, schema = ["id", *[f"emb_{i+1}" for i in range(1024)]]).with_columns(category = pl.lit(category))
-
-    pl.concat(dfs.values()).write_parquet("random_and_reversed_christos.parquet", compression = "zstd")    
+    embeddings = get_embeddings(model, tokenizer, device, sequences, per_residue, per_protein, max_residues=4000, max_seq_len=max_protein_length, max_batch=100)
 
     return 0
 

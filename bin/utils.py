@@ -822,8 +822,8 @@ def extract_elongated_sequences_v2(logger, tm_indices : dict, pdb_struct : dict,
         logger.info("\n".join(log_messages))
 
     return { 
-            "records" : records, 
-            "records_shorts" : records_shorts, 
+            "sequences" : records, 
+            "sequences_shorts" : records_shorts, 
             "structures" : structures, 
             "structures_shorts" : structures_shorts 
         }
@@ -938,11 +938,14 @@ def extract_elongated_sequences_v3(logger, tm_indices : dict, pdb_struct : dict,
         logger.info("\n".join(log_messages))
 
     return { 
-            "records" : records, 
-            "records_shorts" : records_shorts, 
+            "sequences" : records, 
+            "sequences_shorts" : records_shorts, 
             "structures" : structures, 
             "structures_shorts" : structures_shorts 
         }
+
+
+    
 
                     
 #### PERIPHERAL PROTEINS ####

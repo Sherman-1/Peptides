@@ -9,13 +9,17 @@ import argparse
 
 class MMseqs2API:
     def __init__(self, threads, mmseqs2_path='/opt/homebrew/bin/mmseqs', cleanup=False):
+
         self.mmseqs2_path = mmseqs2_path
         self.threads = threads
         self.cleanup = cleanup
         self.dir = Path(os.getcwd()) / "mmseqs_temp"
         self.dir.mkdir(parents=True, exist_ok=True)
 
+        print(f"MMseqs running in {os.getcwd()}")
+
     def _run_command(self, command, log_file):
+
         print(f"Running command: {command}")
         with open(log_file, 'w') as log:
             process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -61,18 +65,23 @@ class MMseqs2API:
                 except Exception as e:
                     print(f"Error deleting file {file}: {e}")
 
-    def fasta2representativeseq(self, fasta_file, writing_dir, cov, iden, cov_mode=0):
+    def fasta2representativeseq(self, fasta_file : str, writing_dir : str, cov : float, iden : float, cov_mode : int = 0):
         
         self.createdb(fasta_file)
+
+        file_name = fasta_file.split("/")[-1].split(".")[0]
+
+        print(file_name)
         self.cluster(coverage=cov, identity=iden, cov_mode=cov_mode)
         self.createtsv()
         with open(self.dir / "result_seq_clu.tsv") as tsv:
             representatives = {line.split()[0] for line in tsv.readlines()}
             
         print(f"Number of representatives : {len(representatives)}")
-        #full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
-        #representatives_fasta = [full_fasta[rep] for rep in representatives]
-        #SeqIO.write(representatives_fasta, Path(writing_dir) / f"{fasta_file}.representatives.faa", "fasta")
+        full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
+        representatives_fasta = {k: full_fasta[k] for k in representatives}
+        
+        return representatives_fasta
 
 
 # Example usage

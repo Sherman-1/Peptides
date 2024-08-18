@@ -33,7 +33,6 @@ def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min
     
 
 
-
 def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, margin: int, inner_margin: int, 
                      min_length: int, max_length: int, gaps: int, iorf_path: str, csv_path: str, verbose : bool) -> None:
 
@@ -53,8 +52,8 @@ def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, mar
                                  csv_path=csv_path, 
                                  verbose=verbose)
         
-        sequences.extend(res_dict["records"])
-        sequences_short.extend(res_dict["records_shorts"])
+        sequences.extend(res_dict["sequences"])
+        sequences_short.extend(res_dict["sequences_shorts"])
         structure = res_dict["structures"]
         structure_short = res_dict["structures_shorts"]
 
