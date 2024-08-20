@@ -202,7 +202,7 @@ def describe_matrix(distance_matrix, k=5):
         **eigens
     }
 
-def compute_structural_metrics(pdb_path):
+def _compute(pdb_path):
 
     basename = os.path.basename(pdb_path).split(".")[0]
 
@@ -257,54 +257,22 @@ def pool_process(pdb_paths, num_processes):
     
     with multiprocessing.Pool(processes=num_processes) as pool:
         print(f"Processing {len(pdb_paths)} PDB files using {num_processes} processes")
-        results = pool.map(compute_structural_metrics, pdb_paths)
+        results = pool.map(_compute, pdb_paths)
 
     return [ res for res in results if res is not None ]
 
 
-def call_pool(pdb_paths, num_processes, category, output):
+def structural_descriptors(pdb_paths, num_processes, category = None):
+
+    if category is None: 
+
+        category = "PLACEHOLDER"
     
     results = pool_process(pdb_paths, num_processes)
 
     return pl.DataFrame(results).with_columns(category = pl.lit(category))
 
 
-    
-def main(categories):
-
-    categories = {
-
-        #"poly_shorts": "/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/save/pdbs/polytopics/shorts",
-        "bi_shorts": "/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/save/pdbs/bitopics/shorts",
-        "peripherals": "/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/save/pdbs/peripherals/longs",
-        # "associated": subprocess.check_output(["python3", "horizontals.py"]).decode().strip(),
-        "S3": "/store/EQUIPES/BIM/MEMBERS/paul.roginski/OLD/ORFPRED/new_data/SCOPe/classes_a_b_c_d_e_20_to_70_uniq_pdb",
-        "small": "/store/EQUIPES/BIM/MEMBERS/paul.roginski/OLD/ORFPRED/new_data/SCOPe/class_g_20_to_70_uniq_pdb",
-
-    }
-
-    dfs = {}
-    for category, path in categories.items():
-        
-        print(f"Processing {category} ...")
-        
-        pdbs = [file for ext in ('pdb', 'ent') for file in glob.glob(f"{path}/*.{ext}")]   
-        
-        pdbs = np.random.choice(pdbs, 200, replace = False)
-        
-        df = call_pool(pdbs, 60, category, f"{category}.tsv")
-
-        dfs[category] = df
-        
-    return pl.concat(dfs.values())
-
-    
-    
-if __name__ == "__main__":
-    
-    df = main()
-    
-    df.write_csv("structural_descriptors.tsv", separator = "\t", include_header = True)
     
 
 

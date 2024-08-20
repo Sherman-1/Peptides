@@ -32,11 +32,13 @@ import polars as pl
 import multiprocessing as mp 
 from bin.MMseqs import MMseqs2API
 from pathlib import Path, PosixPath
-from Bio import SeqIO
+from Bio import SeqIO, SeqRecord
 from tqdm import tqdm
 import os
 import shutil
 import random
+from glob import glob
+import logging
 
 
 from bin.peripheral import peripheral
@@ -44,7 +46,7 @@ from bin.transmembrane import transmembrane
 
 MIN_LENGTH = 20
 MAX_LENGTH = 70
-MIN_SEGMENT_LENGTH = 15
+MIN_SEGMENT_LENGTH = 10
 INNER_MARGIN = 0
 CLOSE_MARGIN = 5
 MARGIN = 20
@@ -78,62 +80,63 @@ def get_paths():
     # Multitopic proteins to be cut 
     polytopic_proteins = (pl.col("classtype_id") == 1) & (pl.col("thickness") >= 20)
 
-
     # Some "peripheral" proteins are anchored to the mb through lipidation, empirical threshold of 12 to remove them
     peripheral_proteins = (pl.col("type_id") == 2) & (pl.col("thickness") <= 12) 
         
     # All peptides that are not beta-helical or non-regular and that are not crossing the membrane
-    peripheral_peptides = ((pl.col("classtype_id") == 7) & (pl.col("classtype_id") == 9) & (pl.col("thickness") < 20)) 
+    peripheral_peptides = ((pl.col("type_id") == 3) & (pl.col("thickness") < 20) & (pl.col("tilt") <= 80)) 
 
-    horizontal_peripheral_peptides = peripheral_peptides & (pl.col("tilt") > 75)
+    horizontal_peripheral_peptides = ((pl.col("type_id") == 3) & (pl.col("thickness") < 20) & (pl.col("tilt") > 80))
         
     # Mis-annotated bitopic proteins
     misannotated_proteins = ((pl.col("classtype_id") == 11) & (pl.col("thickness") < 20))
 
+
+    membranome = list(glob("input/membranome/*.pdb"))
+    bitopic_proteins = metadata.filter(bitopic_proteins)["pdb_path"].to_list()
+    bitopic_peptides = metadata.filter(bitopic_peptides)["pdb_path"].to_list()
+
+
     tm_paths = {
         
-        "bitopic_proteins" : metadata.filter(bitopic_proteins)["pdb_path"].to_list(),
-        "bitopic_peptides" : metadata.filter(bitopic_peptides)["pdb_path"].to_list(),
-        "polytopic_proteins" : metadata.filter(polytopic_proteins)["pdb_path"].to_list()
+        "bitopic" : membranome + bitopic_proteins + bitopic_peptides,
+        "polytopic" : metadata.filter(polytopic_proteins)["pdb_path"].to_list()
 
     }
 
+    peripheral_proteins = metadata.filter(peripheral_proteins)["pdb_path"].to_list()
+    peripheral_peptides = metadata.filter(peripheral_peptides)["pdb_path"].to_list()
+    misannotated_proteins = metadata.filter(misannotated_proteins)["pdb_path"].to_list()
+
     peripheral_paths = {
 
-        "peripheral_proteins" : metadata.filter(peripheral_proteins)["pdb_path"].to_list(),
-        "peripheral_peptides" : metadata.filter(peripheral_peptides)["pdb_path"].to_list(),
-        "horizontal_peripheral_peptides" : metadata.filter(horizontal_peripheral_peptides)["pdb_path"].to_list(),
-        "misannotated_proteins" : metadata.filter(misannotated_proteins)["pdb_path"].to_list()
+        "peripheral" : peripheral_proteins + peripheral_peptides + misannotated_proteins,
+        "horizontal" : metadata.filter(horizontal_peripheral_peptides)["pdb_path"].to_list(),
 
     }
 
     return tm_paths, peripheral_paths
 
-def write_pdb(structure: dict, id : str, writing_dir : PosixPath) -> int:
-
+def write_pdb(structure: dict, id: str, writing_dir: PosixPath) -> int:
     lines = []
     try:
         for res_number, atom_dict in structure.items():
+            if not isinstance(atom_dict, dict):
+                return 1 
             for atom_number, atom_line in atom_dict.items():
                 lines.append(atom_line)
-
         if lines:
             file_name = f"{id}.pdb"
-            file_path = f"{writing_dir}/{file_name}"
-
+            file_path = writing_dir / file_name
             with open(file_path, "w") as output:
-                output.write("".join(lines)) # Lines are already \n terminated
-
+                output.write("".join(lines))  # Lines are already \n terminated
         else:
-            
-            return ValueError("Empty structure")
-
+            logging.error(f"Empty structure for ID: {id}")
+            return 2  
     except Exception as e:
-        
-        return e
-
-
-    return 0
+        logging.error(f"Error writing PDB for ID: {id}, Error: {e}")
+        return 3  
+    return 0  
 
 def try_tm(args : list):
 
@@ -152,7 +155,6 @@ def try_peripheral(args : list):
 def process_results(results):
 
     sequences = [ seq for res in results if res is not None for seq in res["sequences"] ]
-
     structures = {
 
         k2: v2
@@ -166,13 +168,11 @@ def process_results(results):
 def main():
 
     random.seed(42)
-
     transmembranes, peripherals = get_paths()
-
     mmseqs = MMseqs2API(threads = max(1, os.cpu_count() - 2), cleanup=True)
-
     database = Path("database")
     database.mkdir(exist_ok = True)
+    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
 
     # RM everyting under database, dir or file
     for path in database.iterdir():
@@ -185,10 +185,12 @@ def main():
         except Exception as e:
             print(f"Error deleting file {path}: {e}")
 
+
+    covs = [0.3, 0.5, 0.7]
+    idens = [0.3, 0.5, 0.7]
+    
     pbar = tqdm(transmembranes.items(), leave = False, total = len(transmembranes))
 
-    covs = [0.5, 0.7, 0.9]
-    idens = [0.5, 0.7, 0.9]
 
     for category, paths in pbar:
 
@@ -198,56 +200,156 @@ def main():
 
             results = pool.map(try_tm, [(path, None, MARGIN, INNER_MARGIN, MIN_LENGTH, MAX_LENGTH, GAPS, IORF_CSV, None, False) for path in paths])
 
-        results = [ res for res in results if res is not None ]
+        results = [res for res in results if res is not None]
 
-        sequences, structures = process_results(results) 
+        sequences, structures = process_results(results)
 
         SeqIO.write(sequences, f"tmp/{category}.fasta", "fasta")
 
         cat_path = database / Path(category)
-        cat_path.mkdir(exist_ok = True)
+        cat_path.mkdir(exist_ok=True)
 
         for cov in covs:
 
             for id in idens:
 
-                representatives = mmseqs.fasta2representativeseq(fasta_file = f"tmp/{category}.fasta", writing_dir = "tmp", cov = cov, iden = id, cov_mode = 0)
+                representatives = mmseqs.fasta2representativeseq(fasta_file=f"tmp/{category}.fasta", writing_dir="tmp", cov=cov, iden=id, cov_mode=0)
 
                 param_paths = cat_path / Path(f"cov_{cov}_iden_{id}")
-                param_paths.mkdir(exist_ok = True)
+                param_paths.mkdir(exist_ok=True)
 
                 pdb_path = param_paths / Path("pdb")
-                pdb_path.mkdir(exist_ok = True)
+                pdb_path.mkdir(exist_ok=True)
 
                 fasta_path = param_paths / Path("fasta")
-                fasta_path.mkdir(exist_ok = True)
+                fasta_path.mkdir(exist_ok=True)
 
                 common_keys = set(representatives.keys()) & set(structures.keys())
 
-                representatives = { k : representatives[k] for k in common_keys }
-                structures = { k : structures[k] for k in common_keys }
+                representatives = {k: representatives[k] for k in common_keys}
+                sub_structures = {k: structures[k] for k in common_keys}
 
-                print(f"Number of representatives : {len(representatives)}")
-                print(f"Number of structures : {len(structures)}")
+                logging.info(f"Number of sequences: {len(representatives)}")
+                logging.info(f"Number of structures: {len(sub_structures)}")
 
                 seq_to_write = []
                 wrong_keys = []
+                written_pdbs = []
                 for key in common_keys:
 
-                    returned = write_pdb(structures[key], key, pdb_path)
+                    returned = write_pdb(sub_structures[key], key, pdb_path)
 
                     if returned == 0:
+                        written_pdbs.append(key)                        
 
-                        seq_to_write.append(representatives[key])
+                for key in written_pdbs:
+                    try:
+                        if os.path.getsize(f"{pdb_path}/{key}.pdb") != 0:
+
+                            # Double check if the file was written correctly
+                            with open(f"{pdb_path}/{key}.pdb", "r") as f:
+
+                                # Is the fasta corresponding to the key in the right format ? 
+                                if key in representatives:
+                                    seq_to_write.append(representatives[key])
+                                else:
+                                    logging.error(f"Key {key} not found in representatives")
+                        else:
+                            logging.error(f"Empty file: {pdb_path}/{key}.pdb")
+
+                    except FileNotFoundError:
+                        logging.error(f"File not found: {pdb_path}/{key}.pdb")
+                    except IOError as e:
+                        logging.error(f"IO error reading {pdb_path}/{key}.pdb: {e}")
+                    except Exception as e:
+                        logging.error(f"Unexpected error reading {pdb_path}/{key}.pdb: {e}")
+
+                SeqIO.write(seq_to_write, f"{fasta_path}/{category}_cov_{cov}_iden_{id}.fasta", "fasta")
                     
-                    else:
-
-                        print(f"Error writing pdb {key} : {returned}")
-                        wrong_keys.append(key)
-
-                SeqIO.write(seq_to_write, f"{fasta_path}/{category}.fasta", "fasta")
-
     pbar.close()
+    
+
+    pbar = tqdm(peripherals.items(), leave = False, total = len(peripherals))
+
+    for category, paths in pbar:
+
+        pbar.set_description(f"Processing {category}")
+
+        with mp.Pool(max(1, mp.cpu_count() - 4)) as pool:
+
+            #def peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):
+
+            results = pool.map(try_peripheral, [(path, CLOSE_MARGIN, MARGIN, MIN_LENGTH, MAX_LENGTH, MIN_SEGMENT_LENGTH, IORF_CSV, None, GAPS, False) for path in paths])
+
+        results = [res for res in results if res is not None]
+
+        sequences, structures = process_results(results)
+
+        SeqIO.write(sequences, f"tmp/{category}.fasta", "fasta")
+
+        cat_path = database / Path(category)
+        cat_path.mkdir(exist_ok=True)
+
+        for cov in covs:
+
+            for id in idens:
+
+                representatives = mmseqs.fasta2representativeseq(fasta_file=f"tmp/{category}.fasta", writing_dir="tmp", cov=cov, iden=id, cov_mode=0)
+
+                param_paths = cat_path / Path(f"cov_{cov}_iden_{id}")
+                param_paths.mkdir(exist_ok=True)
+
+                pdb_path = param_paths / Path("pdb")
+                pdb_path.mkdir(exist_ok=True)
+
+                fasta_path = param_paths / Path("fasta")
+                fasta_path.mkdir(exist_ok=True)
+
+                common_keys = set(representatives.keys()) & set(structures.keys())
+
+                representatives = {k: representatives[k] for k in common_keys}
+                sub_structures = {k: structures[k] for k in common_keys}
+
+                logging.info(f"Number of sequences: {len(representatives)}")
+                logging.info(f"Number of structures: {len(sub_structures)}")
+
+                seq_to_write = []
+                wrong_keys = []
+                written_pdbs = []
+                for key in common_keys:
+
+                    returned = write_pdb(sub_structures[key], key, pdb_path)
+
+                    if returned == 0:
+                        written_pdbs.append(key)                        
+
+                for key in written_pdbs:
+
+                    try:
+                        if os.path.getsize(f"{pdb_path}/{key}.pdb") != 0:
+
+                            # Double check if the file was written correctly
+                            with open(f"{pdb_path}/{key}.pdb", "r") as f:
+
+                                # Is the fasta corresponding to the key in the right format ? 
+                                if key in representatives:
+                                    seq_to_write.append(representatives[key])
+                                else:
+                                    logging.error(f"Key {key} not found in representatives")
+
+                        else:
+                            logging.error(f"Empty file: {pdb_path}/{key}.pdb")
+
+                    except FileNotFoundError:
+                        logging.error(f"File not found: {pdb_path}/{key}.pdb")
+
+                    except IOError as e:
+                        logging.error(f"IO error reading {pdb_path}/{key}.pdb: {e}")
+
+                    except Exception as e:
+                        logging.error(f"Unexpected error reading {pdb_path}/{key}.pdb: {e}")
+
+                SeqIO.write(seq_to_write, f"{fasta_path}/{category}_cov_{cov}_iden_{id}.fasta", "fasta")
 
 if __name__ == '__main__':
 
