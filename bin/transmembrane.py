@@ -30,6 +30,8 @@ def transmembrane(file_path, secondary_structure_path, margin, inner_margin, min
     res_dict = extract_elongated_sequences_v3(transmembrane_logger,tm_indices = tm_indices, pdb_struct = pdb_struct, gaps = gaps, verbose = verbose)
     
     return res_dict
+
+
     
 
 
@@ -39,6 +41,8 @@ def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, mar
     protein_name = os.path.basename(pdb_path).split(".")[0]
     sequences = []
     sequences_short = []
+
+    print(pdb_path)
 
     try:
         res_dict = transmembrane(file_path=pdb_path, 
@@ -57,10 +61,12 @@ def process_transmembrane_file(pdb_path: str, secondary_structure_path: str, mar
         structure = res_dict["structures"]
         structure_short = res_dict["structures_shorts"]
 
+        print(sequences)
+
     except Exception as e:
         transmembrane_logger.error(f"Error processing file {pdb_path}: {e}")
-        #print(f"Error processing file {pdb_path}: {e}")
-        return 1
+        print(f"Error processing file {pdb_path}: {e}")
+        return e
 
     return sequences, sequences_short, structure, structure_short, protein_name
 
@@ -76,7 +82,7 @@ def main():
     parser.add_argument("--secondary_structures", help="Secondary structure file")
     parser.add_argument("--min_length", type=int, help = "Mininimum target size for transmembrane segments elongation", default = 20)
     parser.add_argument("--max_length", type=int, help = "Maximum target size for transmembrane segments elongation", default = 70)
-    parser.add_argument("--margin", type=int, help = "Supplementary distance from the membrane to consider amino acids of interest", default = 10)
+    parser.add_argument("--margin", type=int, help = "Supplementary distance from the membrane to consider amino acids of interest", default = 15)
     parser.add_argument("--inner_margin", 
                         type=int,
                         help = "Distance to artificially reduce the membrane width to capture more amino acids as out-of-membrane", 
@@ -106,10 +112,10 @@ def main():
                                     csv_path = args.csv,
                                     verbose = args.verbose)
         
-        if buff != 1:
+        if type(buff) == tuple: 
+
             sequences, sequences_short, structures, structures_short, protein_name = buff
                 
-            print(sequences)
             for chain_id, segment_dict in structures.items():
                 if not segment_dict:
                     continue
@@ -131,6 +137,12 @@ def main():
 
                         with open(file_path, "w") as output:
                             output.write("".join(lines)) # Lines are already \n terminated
+
+            print(sequences)
+
+        else:
+
+            print(buff)
                             
         
 

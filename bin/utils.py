@@ -515,11 +515,12 @@ def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0
 
         log_messages.append(f"Binarizing chain {chain_id} ...")
 
-        last_res_number = list(residues.keys())[0]
+        last_res_number = sorted(residues.keys())[0]
         log_messages.append(f"First residue number : {last_res_number}")
 
         last_res_number -= 1 # To pass the test for the condition int(res_number) != last_res_number + 1:
-        for current_res_number, data in residues.items():
+        for current_res_number in sorted(residues.keys()): # Some PDBs are not well formated regarding the order of the residues, sort em to be sure
+            data = residues[current_res_number]
 
             x = data["coord"][0]
             y = data["coord"][1]
@@ -533,6 +534,7 @@ def binarize_transmembrane(logger, pdb_struct: dict, margin=10, inner_margin = 0
                 # Fill in the gaps with zeros, by default
                 in_membrane_binaries[chain_id] += "0" * (int(current_res_number) - last_res_number - 1)
                 in_margin_binaries[chain_id] += "0" * (int(current_res_number) - last_res_number - 1)
+                log_messages.append(f"Found missing amino acids from {last_res_number} to {current_res_number}")
 
             # Compute the binary string for the current residue
             is_x = min_x_membrane <= x <= max_x_membrane
@@ -587,7 +589,7 @@ def define_tm_segments(logger, binary_dict : dict, pdb_struct : dict, verbose = 
             else:
                 if start_index is not None:
                     length = i-start_index+1
-                    if length >= 15: # minimum length of a TM segment, although 20 is the length of a typical alpha helical TM segment
+                    if length >= 10: # minimum length of a TM segment, although 20 is the length of a typical alpha helical TM segment
                         
                         # python indices are 0-based, so we add 1 to match 
                         # the 1-based residue numbering in the PDB file
@@ -644,6 +646,9 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
         desired_lengths = size_picker_v3(fasta_file = iorf_path, precomputed_file = iorf_csv, min_length=min_length, max_length=max_length, n_samples=len(tm_indices[chain_id]))
         chain_length = pdb_struct["protein_length"][chain_id]
 
+        min_chain = min([ aa_num for aa_num in pdb_struct["CA"][chain_id].keys() ])
+        max_chain = max([ aa_num for aa_num in pdb_struct["CA"][chain_id].keys() ])
+
         for i, (current_start, current_end, length_current) in enumerate(tm_indices[chain_id]):
 
             desired_length = desired_lengths[i]
@@ -665,9 +670,10 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                 # Calculate new coordinates
                 # Out of bound new coordinates will be treated as Xs in the future 
                 # sequence and will be removed by trimming
-                new_end_coordinates = min(chain_length,current_end + downstream)
-                new_start_coordinates = max(0,current_start - upstream)
+                new_end_coordinates = min(max_chain, current_end + downstream)
+                new_start_coordinates = max(min_chain, current_start - upstream)
                 log_messages.append(
+                    
                             f"Old start to old end : {current_start} to {current_end}\n"
                             f"Desired length: {desired_length}\n"
                             f"Current length: {length_current}\n"
@@ -680,11 +686,14 @@ def elongate_tm_segments(logger, tm_indices, pdb_struct, iorf_path, iorf_csv, mi
                             f"new end result : {new_end_coordinates}\n")
                 
                 if current_start < new_start_coordinates:
-                    
+
+                    logger.info("\n".join(log_messages)) 
                     raise ValueError(f"Current start {current_start} is lesser than new start {new_start_coordinates}")
+                    
                 
                 if current_end > new_end_coordinates:
-                    
+
+                    logger.info("\n".join(log_messages)) 
                     raise ValueError(f"Current end {current_end} is greater than new end {new_end_coordinates}")
 
                 # Update the segment information with new start and end positions
