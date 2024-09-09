@@ -30,6 +30,7 @@ input/OPM/
 output/
 save/
 database/
+tmp/
 
 # OS generated files #
 ######################

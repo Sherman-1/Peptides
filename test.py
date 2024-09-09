@@ -1,11 +1,23 @@
-from bin.transmembrane import transmembrane 
-from tqdm import tqdm
-from glob import glob 
-import random
+import glob
+from bin.data.utils import read_pdb
+from pathlib import Path
 
-path = "input/OPM/7k15.pdb"
+files = glob.glob("database/horizontal/cov_0.3_iden_0.3/pdb/*")
 
-try:
-    transmembrane(path, None, 15, 0, 20, 70, 1, None, "input/iORFs.csv", verbose = True)
-except Exception as e:
-    print(e)
+i = 0
+for pdb_file in files:
+
+
+    path = Path(pdb_file)
+    pdb = read_pdb(None,path)
+
+    
+    i += 1
+    print(pdb["protein_name"])
+    print(pdb["sequence"])
+    
+    print(i)
+
+
+
+        
