@@ -63,7 +63,7 @@ def setup_aa_indexes():
     aa_indexes = {}
 
     # Read the aa_indexes_names from the first file
-    with open(main_directory / "bin" / "descriptors" / "selected_aaindex1_reformated_58_Van_Westen.dms", "r") as f:
+    with open(main_directory / "bin" / "descriptors" / "support_data" / "selected_aaindex1_reformated_58_Van_Westen.dms", "r") as f:
         for line in f:
             if line.startswith("#"):
                 aa = line.split()[1:]
@@ -71,16 +71,13 @@ def setup_aa_indexes():
             aa_indexes_names.append(line.split()[0].strip())
 
     # Read the aa_indexes from the second file
-    with open(main_directory / "bin" / "descriptors" / "AA_index_scaled.txt", "r") as f:
+    with open(main_directory / "bin" / "descriptors" / "support_data" / "AA_index_scaled.txt", "r") as f:
         for line in f:
             aa = line.split()[0].strip()
             for i, aaj in enumerate(line.split()[1:]):
                 if aa_indexes_names[i] not in aa_indexes:
                     aa_indexes[aa_indexes_names[i]] = {}
                 aa_indexes[aa_indexes_names[i]][aa] = float(aaj)
-
-    print(aa_indexes)
-
     
 
 
@@ -167,12 +164,14 @@ def pool_process(records, num_processes):
 
     return [ res for res in results if res is not None ]
 
-def process_data(records, num_processes, category):
+def process_data(records, category):
 
     # Filter out bad records 
     records = [ record for record in records if len(record.seq) > 0 and set(record.seq) <= AA ]
     
     #results = pool_process(records, num_processes)
+
+    setup_aa_indexes()
 
     results = []
     for record in records:
@@ -283,11 +282,7 @@ def process_data(records, num_processes, category):
     df = pl.DataFrame(results, schema=schema)
 
     df = df.with_columns(category = pl.lit(category)).select(columns)
-
-    print(f"Dataframe shape : {df.shape}")
-
-    print(df.head())
-
+    
     return df
     
 

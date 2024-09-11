@@ -5,7 +5,8 @@ import shutil
 import requests
 import logging
 from Bio import SeqIO
-from Bio import SeqRecord
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 from io import StringIO
 import random
 from MMseqs import MMseqs2
@@ -87,16 +88,20 @@ def cut_sequence(sequence, length_distribution, min_length):
 
     return cuts
 
-def cut_fasta(fasta : SeqRecord, output_fasta, length_distribution, min_length):
+def cut_fasta(fasta : SeqRecord, length_distribution, min_length, max_length):
 
     """
-    Cut sequences in the input_fasta based on length_distribution and min_length, and write them to output_fasta.
+    Cut sequences in the input_fasta based on length_distribution and min_length.
     """
-    with open(output_fasta, "w") as output_handle:
-        for record in fasta:
-            cut_seqs = cut_sequence(record.seq, length_distribution, min_length)
-            for i, cut_seq in enumerate(cut_seqs):
-                output_handle.write(f">{record.id}_cut_{i}\n{cut_seq}\n")
+
+    records = []
+    for record in fasta:
+        cut_seqs = cut_sequence(record.seq, length_distribution, min_length)
+        for i, cut_seq in enumerate(cut_seqs):
+            records.append(SeqRecord(Seq(cut_seq), id=f"{record.id}_{i}", description=""))
+
+    return [ seq for seq in records if min_length <= len(seq.seq) <= max_length]
+            
 
 
 def download_disprot_fasta(link):
@@ -120,7 +125,6 @@ def main():
 
     search_main_directory()
 
-    #create_database_directory()
 
     disprot_link = "https://disprot.org/api/search?release=2024_06&show_ambiguous=false&show_obsolete=false&format=fasta&namespace=all&get_consensus=false"
 
@@ -129,20 +133,18 @@ def main():
         iORFs_distribution = [int(line.strip()) for line in f.readlines()]
 
     min_length = 20
+    max_length = 70
 
     disprot_iterable = download_disprot_fasta(disprot_link)
 
-    disprot_dir = main_directory / "database/full/"
-    disprot_dir.mkdir(parents=True, exist_ok=True)
+    records = cut_fasta(disprot_iterable, iORFs_distribution, min_length, max_length)
 
-    disprot_fasta = disprot_dir / "disprot.fasta"
-
-    cut_fasta(disprot_iterable, disprot_fasta, iORFs_distribution, min_length)
-
-    mmseqs = MMseqs2(threads=6, cleanup=True)
+    return {"disprot": records}
 
     
 
     
 if __name__ == "__main__":
-    main()
+
+
+    print(main())

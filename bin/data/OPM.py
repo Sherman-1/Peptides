@@ -50,54 +50,7 @@ def search_main_directory():
     print(f"Working on the main directory : {main_directory}")
     
     return main_directory
-    
-def create_database_directory():
-
-    """Creates the database directory and removes any existing contents."""
-
-    search_main_directory()
-    
-    global database
-    database = main_directory / "database"
-
-    database.mkdir(exist_ok=True)
-    for path in database.iterdir():
-        try:
-            if path.is_file():
-                path.unlink()
-            elif path.is_dir():
-                shutil.rmtree(path)
-        except Exception as e:
-            logging.error(f"Error deleting file {path}: {e}")
-
-def setup_environment():
-
-    """Sets up the random seed, mmseqs API, logging, and database directory."""
-
-    random.seed(42)
-
-    global mmseqs 
-    mmseqs = MMseqs2(threads = max(1, os.cpu_count() - 2), cleanup=True)
-
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
-
-    create_database_directory()
-
-    tmpdir = Path("tmp")
-    tmpdir.mkdir(parents = True, exist_ok = True)
-
-
-def create_directories(cat_path : PosixPath, cov, id):
-
-    """Creates the directories for the category, coverage, and identity."""
-
-    param_paths = cat_path / Path(f"cov_{cov}_iden_{id}")
-    param_paths.mkdir(exist_ok=True)
-    pdb_path = param_paths / Path("pdb")
-    pdb_path.mkdir(exist_ok=True)
-    fasta_path = param_paths / Path("fasta")
-    fasta_path.mkdir(exist_ok=True)
-    return pdb_path, fasta_path
+  
 
 def get_paths():
 
@@ -196,7 +149,7 @@ def try_peripheral(args : list):
         print(e)
         return None
     
-def process_results(results):
+def pretty_res(results):
 
     sequences = [ seq for res in results if res is not None for seq in res["sequences"] ]
     structures = {
@@ -274,22 +227,6 @@ def write_fasta_sequences(fasta_path, category, cov, id, common_keys, representa
 
     SeqIO.write(seq_to_write, f"{fasta_path}/{category}_cov_{cov}_iden_{id}.fasta", "fasta")
 
-def process_representatives(category, structures, fasta_file):
-
-    cat_path = database / Path(category)
-    cat_path.mkdir(exist_ok=True)
-
-    for cov in COVS:
-        for iden in IDENS:
-            representatives = mmseqs.fasta2representativeseq(fasta_file=fasta_file, writing_dir="tmp", cov=cov, iden=iden, cov_mode=0)
-            pdbs_path, fastas_path = create_directories(cat_path, cov, iden)
-            common_keys = set(representatives.keys()) & set(structures.keys())
-            write_pdbs(pdbs_path, common_keys, structures)
-            write_fasta_sequences(fastas_path, category, cov, iden, common_keys, representatives)
-            break
-            
-        break
-
 def process_pool(paths, process_function):
 
     if process_function == try_tm:
@@ -312,34 +249,33 @@ def process_datasets(datasets, process_function):
 
     pbar = tqdm(datasets.items(), leave=False, total=len(datasets))
 
+    result = {}
     for category, paths in pbar:
-
-        full_path = database / "full" / category
-
-        full_path.mkdir(parents = True, exist_ok = True)
 
         pbar.set_description(f"Processing {category}")
         results = process_pool(paths, process_function)
-        sequences, structures = process_results(results)
-        SeqIO.write(sequences, f"tmp/{category}.fasta", "fasta")
-        write_pdbs(full_path, structures.keys(), structures)
-        process_representatives(category, structures, f"tmp/{category}.fasta")
+        sequences, structures = pretty_res(results)
+
+        result[category] = [seq for seq in sequences if MIN_LENGTH <= len(seq.seq) <= MAX_LENGTH]
+
 
     pbar.close()
 
+    return result
+
 def main():
 
-    setup_environment()
+    search_main_directory()
 
     transmembranes, peripherals = get_paths()
 
     print("Processing Transmembranes ...")
-    process_datasets(transmembranes, try_tm)
+    tms = process_datasets(transmembranes, try_tm)
 
     print("Processing peripherals ...")
-    process_datasets(peripherals, try_peripheral)
+    periphs = process_datasets(peripherals, try_peripheral)
 
-
+    return {**tms, **periphs}
 
 
 if __name__ == '__main__':

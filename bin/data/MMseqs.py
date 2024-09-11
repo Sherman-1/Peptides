@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from pathlib import PosixPath
 import shutil
 from Bio import SeqIO
 import argparse
@@ -65,19 +66,15 @@ class MMseqs2:
                 except Exception as e:
                     print(f"Error deleting file {file}: {e}")
 
-    def fasta2representativeseq(self, fasta_file : str, writing_dir : str, cov : float, iden : float, cov_mode : int = 0) -> dict:
+    def fasta2representativeseq(self, fasta_file : PosixPath, writing_dir : str, cov : float, iden : float, cov_mode : int = 0) -> dict:
         
         self.createdb(fasta_file)
-
-        file_name = fasta_file.split("/")[-1].split(".")[0]
-
-        print(file_name)
         self.cluster(coverage=cov, identity=iden, cov_mode=cov_mode)
         self.createtsv()
+
         with open(self.dir / "result_seq_clu.tsv") as tsv:
             representatives = {line.split()[0] for line in tsv.readlines()}
             
-        print(f"Number of representatives : {len(representatives)}")
         full_fasta = SeqIO.to_dict(SeqIO.parse(fasta_file, "fasta"))
         representatives_fasta = {k: full_fasta[k] for k in representatives}
         

@@ -215,8 +215,6 @@ def compute(sequences : dict, max_protein_length : int):
 
 
     print("Using device: {}".format(device))
-
-
     print("Loading model ...")
     model, tokenizer = get_T5_model(device)
 
@@ -227,12 +225,10 @@ def compute(sequences : dict, max_protein_length : int):
 
     embeddings = get_embeddings(model, tokenizer, device, sequences, per_residue, per_protein, max_residues=6000, max_seq_len=max_protein_length, max_batch=150)
 
-
-    print(embeddings)
-    return 0
+    return embeddings   
 
 
-if __name__ == '__main__':
+def main(sequences):
 
 
     pdb_parser = PDBParser(QUIET=True)
@@ -240,22 +236,20 @@ if __name__ == '__main__':
 
     import glob 
 
-    pdbs_paths = glob.glob("/Users/simonherman/Documents/I2BC/Peptides/database/full/polytopic/*")
+    sequences = { seq.id : seq.seq for seq in sequences }
+    max_protein_length = max([len(seq) for seq in sequences.values()])
 
-    sequences = dict()
+    embeddings = compute(sequences, max_protein_length) 
 
-    max_protein_length = 0 
-    for pdb_path in pdbs_paths:
-
-        pdb_id = pdb_path.split("/")[-1].split(".")[0]
-        structure = pdb_parser.get_structure(pdb_id, pdb_path)
-        seq = "".join([ str(pp.get_sequence()) for pp in ppb.build_peptides(structure[0]) ])
-        sequences[pdb_id] = seq
-
-        max_protein_length = max(max_protein_length, len(seq))
-
-    print("Max protein length : ", max_protein_length)
-
-    compute(sequences, max_protein_length)
-
+    data = embeddings["protein_embs"]
     
+    rows = []
+
+    for identifier, embedding in data.items():
+        row = [identifier] + embedding.tolist()
+        rows.append(row)
+
+    column_names = ['id'] + [f'embed_{i}' for i in range(len(next(iter(data.values()))))]
+    df = pl.DataFrame(rows, schema=column_names)
+
+    return df

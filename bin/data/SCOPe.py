@@ -1,11 +1,15 @@
 import requests
 import tarfile
 from io import BytesIO
+from io import StringIO
 import os
 import shutil
-from Bio import SeqIO, SeqRecord
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from pathlib import Path, PosixPath
 from MMseqs import MMseqs2
+import logging
 
 MIN_LENGTH = 20
 MAX_LENGTH = 70
@@ -43,6 +47,7 @@ def create_database_directory():
     database = main_directory / "database"
 
     database.mkdir(exist_ok=True)
+    """
     for path in database.iterdir():
         try:
             if path.is_file():
@@ -51,7 +56,7 @@ def create_database_directory():
                 shutil.rmtree(path)
         except Exception as e:
             logging.error(f"Error deleting file {path}: {e}")
-
+    """
 def create_directories(cat_path : PosixPath, cov, id):
 
     """Creates the directories for the category, coverage, and identity."""
@@ -122,34 +127,46 @@ def download_pdbstyle(write = False):
     
     return pdbstyle_tree
 
-def download_fasta_file(url, output_filename):
+def download_and_extract_class_sequences(url, min_length, max_length):
 
-    print("Downloading fasta file ... ")
+    print("Downloading and extracting sequences ...")
+
+    """
     response = requests.get(url)
-    with open(output_filename, 'w') as fasta_file:
-        fasta_file.write(response.text)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to download the file. Status code: {response.status_code}")
 
+    fasta_content = response.text
 
-def extract_class_sequences(fasta_path, min_length, max_length):
+    fasta_io = StringIO(fasta_content)
+    """
+
+    fasta_io = main_directory / "input/astral-scopedom-seqres-gd-all-2.08-stable.fa"
 
     classes = {}
     AAs = "ACDEFGHIKLMNPQRSTVWY"
+    expected_classes = "abcdeg"    
 
-    for record in SeqIO.parse(fasta_path, "fasta"):
-        # Check if the first character of the second word in the description is 'g'
+    for record in SeqIO.parse(fasta_io, "fasta"):
+
         # Format : d6iyia_ a.1.1.0 (A:) automated matches {Acipenser stellatus [TaxId: 7903]}
-        class_ = record.description.split()[1][0]   
+        # We expect the class to be the letter after the first space in the description
+        class_ = record.description.split()[1][0]
         seq = record.seq.upper()
 
         if set(seq).issubset(AAs) and min_length <= len(seq) <= max_length:
             if class_ not in classes:
-                classes[class_] = {}
-            classes[class_][record.id] = record
+                classes[class_] = []
+                print(f"Adding class {class_}")
+            classes[class_].append(SeqRecord(Seq(seq), id=record.id, description=record.description))
+
 
     return classes
 
 def main():
 
+    """
     pdbstyle_tree = download_pdbstyle(write = True)
 
     with open("pdbstyle_tree.txt", "r") as file:
@@ -162,57 +179,30 @@ def main():
     }
 
     print(id_to_path)
+    """
+
+    create_database_directory()
+
 
     fasta_url = "https://scop.berkeley.edu/downloads/scopeseq-2.08/astral-scopedom-seqres-gd-all-2.08-stable.fa"
     fasta_path = "tmp/astral.fasta"
 
-    download_fasta_file(fasta_url, fasta_path)
-
-    records_per_class = extract_class_sequences(fasta_path, MIN_LENGTH, MAX_LENGTH)
-
-    mmseqs = MMseqs2(threads = max(1, os.cpu_count() - 4), cleanup = True)
-
     index_to_name = {"g" : "Small", "abcde" : "Structured_solution"}
 
-    for indexes in ("g","abcde"):
+    classes = download_and_extract_class_sequences(fasta_url, MIN_LENGTH, MAX_LENGTH)
 
-        category = index_to_name[indexes]
+    result = {}
 
-        db_dir = Path(f"database/{category}")
-        db_dir.mkdir(parents = True, exist_ok = True)
-        
-        records = [ record for index in indexes if index in records_per_class for record in records_per_class[index].values() ]
+    result["Small"] = classes.get("g", [])
 
-        SeqIO.write(records, f"tmp/{category}.fasta","fasta")
+    structured_solution_keys = ["a", "b", "c", "d", "e"]
+    result["Structured_solution"] = sum((classes.get(key, []) for key in structured_solution_keys), [])
 
-        for cov in COVS: 
+    return result
 
-            for id in IDENS:
-    
-                repr = mmseqs.fasta2representativeseq(f"tmp/{category}.fasta",db_dir, cov, id)
+if __name__ == "__main__":
 
-                pdb_dir, fasta_dir = create_directories(db_dir, cov = cov, id = id)
-
-                sequences = []
-                for id in repr.keys(): 
-
-                    try:
-
-                        pdb_path = id_to_path[id] 
-                        destination_dir = pdb_dir / pdb_path.name
-                        seq = repr[id]
-                        assert type(seq) == SeqRecord
-                        shutil.copy(pdb_path, destination_dir )
-                        sequences.append(seq)
-                    
-                    except Exception as e:
-                        print(e)
-
-                SeqIO.write(sequences, fasta_dir, "fasta")
-
-
-                        
-
+    main()
 
 
 

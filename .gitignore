@@ -25,6 +25,11 @@
 *.log
 *.sql
 *.sqlite
+*.fasta
+*.fa
+*.faa
+*.fna
+*.csv
 input/Membranome/
 input/OPM/
 output/
