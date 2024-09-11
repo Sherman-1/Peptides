@@ -5,12 +5,52 @@ import os
 import shutil
 from Bio import SeqIO, SeqRecord
 from pathlib import Path, PosixPath
-from bin.MMseqs import MMseqs2
+from MMseqs import MMseqs2
 
 MIN_LENGTH = 20
 MAX_LENGTH = 70
 COVS = [0.3]
 IDENS = [0.3]
+
+def search_main_directory():
+
+    """
+    Iteratively searches for the peptide directory and returns its absolute path.
+    """
+
+    global main_directory
+    main_directory = None
+    for i in range(3): 
+        backward = "../" * i
+        main_directory = Path(f"{backward}Peptides").resolve()
+        if main_directory.exists():
+            break
+
+    if main_directory is None:
+        raise FileNotFoundError("Peptide directory not found")
+    
+    print(f"Working on the main directory : {main_directory}")
+    
+    return main_directory
+    
+def create_database_directory():
+
+    """Creates the database directory and removes any existing contents."""
+
+    search_main_directory()
+    
+    global database
+    database = main_directory / "database"
+
+    database.mkdir(exist_ok=True)
+    for path in database.iterdir():
+        try:
+            if path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+        except Exception as e:
+            logging.error(f"Error deleting file {path}: {e}")
 
 def create_directories(cat_path : PosixPath, cov, id):
 
@@ -110,7 +150,7 @@ def extract_class_sequences(fasta_path, min_length, max_length):
 
 def main():
 
-    #pdbstyle_tree = download_pdbstyle(write = True)
+    pdbstyle_tree = download_pdbstyle(write = True)
 
     with open("pdbstyle_tree.txt", "r") as file:
         
@@ -126,7 +166,7 @@ def main():
     fasta_url = "https://scop.berkeley.edu/downloads/scopeseq-2.08/astral-scopedom-seqres-gd-all-2.08-stable.fa"
     fasta_path = "tmp/astral.fasta"
 
-    #download_fasta_file(fasta_url, fasta_path)
+    download_fasta_file(fasta_url, fasta_path)
 
     records_per_class = extract_class_sequences(fasta_path, MIN_LENGTH, MAX_LENGTH)
 

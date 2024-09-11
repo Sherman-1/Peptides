@@ -36,28 +36,38 @@ def _parse_output(stdout) -> dict:
     _ =  [ line for line in stdout.split('\n') if line.startswith('ASG') ]
     
     _dict = {}
-    
+    unique_chains = set()
     for line in _:
         
         chain_id = line[9].strip()
+
+        unique_chains.add(chain_id)
+        if len(unique_chains) > 1:
+            raise ValueError("Multiple chains are not supported")
         res_number = int(line[11:15])
         secondary_structure = line[24]
         
-        if chain_id not in _dict:
-            
-            _dict[chain_id] = {}
-            
-        else:
-            
-            _dict[chain_id][res_number] = secondary_structure
-            
+        _dict[res_number] = secondary_structure
+
     return _dict
+        
     
     
 def stride(pdbpath) -> dict:
     
     """
     Perform STRIDE analysis
+
+    One-letter secondary structure code is nearly the same as used  in
+	DSSP [2] (see Frishman and Argos [1] for details):
+
+	   H	    Alpha helix
+	   G	    3-10 helix
+	   I	    PI-helix
+	   E	    Extended conformation
+	   B or	b   Isolated bridge
+	   T	    Turn
+	   C	    Coil (none of the above)
 
     Parameters
     ----------
@@ -69,6 +79,8 @@ def stride(pdbpath) -> dict:
     output : str
       The raw stdout from stride as a string
     """
+
+    folded_letters = "HGIEBb"
     
     p = subprocess.Popen(['stride', pdbpath],
                          stdout=subprocess.PIPE,
@@ -77,8 +89,10 @@ def stride(pdbpath) -> dict:
     
     output = stdout.decode(encoding = "utf-8")
     
-    return _parse_output(output)
-    
+    _dict = _parse_output(output) 
+
+    return len([ _ for _ in _dict.values() if _ in folded_letters]) / len(_dict)   
+
 
 if __name__ == "__main__": 
     
@@ -96,3 +110,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     print(stride(args.input))
+
+

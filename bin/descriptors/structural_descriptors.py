@@ -12,8 +12,9 @@ import tempfile
 
 
 
-from bin.HullRadV9 import compute_metrics as hullrad
-from bin.hydromoment import analyze_sequence
+from HullRadV9 import compute_metrics as hullrad
+from hydromoment import analyze_sequence
+from pyStride import stride
 
 import argparse 
 
@@ -31,8 +32,6 @@ ppb=PPBuilder()
 
 
 AA = { "A", "R", "N", "D", "C", "Q", "E", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V" }
-
-TEMP_DIR = "/store/EQUIPES/BIM/MEMBERS/simon.herman/Peptides/tmp"
 
 def extract_matrix(structure):
     """
@@ -59,110 +58,6 @@ def extract_matrix(structure):
     except Exception as e:
         print(f"Error processing {structure.id}: {e}")
         return None
-
-
-
-
-
-def parse_assignment(lines) -> dict:
-    
-    """
-    Parse an ASG line from STRIDE
-    
-    STRIDE Format as in official documentation : 
-    
-    ASG    Detailed secondary structure assignment
-
-    Format:  
-    
-    6-8     Residue name
-    10-10   Protein chain identifier
-    12-15   PDB	residue	number
-    17-20   Ordinal residue number
-    25-25   One	letter secondary structure code	**)
-    27-39   Full secondary structure name
-    43-49   Phi	angle
-    53-59   Psi	angle
-    65-69   Residue solvent accessible area
-
-    Returns
-    -------
-    Assignment namedtuple
-    """
-    Assignments = {}
-    
-    for line in lines: 
-        
-        if line.startswith("ASG"):
-            
-            resname = line[5:8].strip()
-            chain_id = line[9:10].strip()
-            res_id = line[11:15].strip()
-            res_num = line[16:20].strip()
-            structure_code = line[24:25].strip()
-            structure_name = line[26:39].strip()
-            phi = line[42:49].strip()
-            psi = line[52:59].strip()
-            area = line[64:69].strip()
-            
-            Assignments[chain_id] = { 
-                                    
-                                "resname" : resname,   
-                                "res_id" : res_id,
-                                "res_num" : res_num,
-                                "structure_code" : structure_code,
-                                "structure_name" : structure_name,
-                                "phi" : phi,
-                                "psi" : psi,
-                                "area" : area
-                                
-                            }
-            
-    if Assignments:
-        
-        return Assignments
-    
-    else:
-        
-        return None
-
-def stride(pdbpath):
-  
-    """
-    Perform STRIDE analysis 
-    
-    Parameters
-    ----------
-    pdbpath : str
-      path to the pdb file to analyse
-
-    Returns
-    -------
-    output : decoded standard output of 
-    """
-    
-    stride_path = 'stride'
-    p = subprocess.Popen([stride_path, pdbpath],
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-    
-    try:
-        stdout, stderr = p.communicate()
-        
-        lines = stdout.decode('utf-8')
-        
-        if lines :
-            
-            return lines.split("\n")
-        
-        else: 
-            
-            return None
-    
-    except Exception as e:
-        print(e)
-        return None
-  
 
 
 def describe_matrix(distance_matrix, k=5):
@@ -212,13 +107,15 @@ def _compute(pdb_path):
         distance_matrix = extract_matrix(structure)
         
     except Exception as e:
+        print(e)
         return None
 
     seq = []
     for pp in ppb.build_peptides(structure):
         seq.extend(pp.get_sequence())
         
-    if len(seq) == 0 or set(seq) <= AA:
+    if len(seq) == 0 or set(seq) >= AA:
+        print("Unknown AA or empty sequence")
         return None
         
     aa_composition = { aa : seq.count(aa) / len(seq) for aa in AA }
@@ -245,6 +142,7 @@ def _compute(pdb_path):
     
     if phys_features is None or geometric_features is None or chem_features is None or second_struct_percent is None:
 
+        print("Chelou frr")
         return None
 
     else: 
@@ -271,6 +169,23 @@ def structural_descriptors(pdb_paths, num_processes, category = None):
     results = pool_process(pdb_paths, num_processes)
 
     return pl.DataFrame(results).with_columns(category = pl.lit(category))
+
+
+def test():
+
+    import glob 
+
+    pdbs = glob.glob("/Users/simonherman/Documents/I2BC/Peptides/database/full/horizontal/*")
+
+    for pdb in pdbs:
+
+        print(_compute(pdb))
+
+if __name__ == "__main__":
+
+    test()
+
+
 
 
     

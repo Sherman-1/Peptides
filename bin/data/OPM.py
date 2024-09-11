@@ -280,12 +280,12 @@ def process_representatives(category, structures, fasta_file):
     cat_path.mkdir(exist_ok=True)
 
     for cov in COVS:
-        for id in IDENS:
-            representatives = mmseqs.fasta2representativeseq(fasta_file=fasta_file, writing_dir="tmp", cov=cov, iden=id, cov_mode=0)
-            pdbs_path, fastas_path = create_directories(cat_path, cov, id)
+        for iden in IDENS:
+            representatives = mmseqs.fasta2representativeseq(fasta_file=fasta_file, writing_dir="tmp", cov=cov, iden=iden, cov_mode=0)
+            pdbs_path, fastas_path = create_directories(cat_path, cov, iden)
             common_keys = set(representatives.keys()) & set(structures.keys())
             write_pdbs(pdbs_path, common_keys, structures)
-            write_fasta_sequences(fastas_path, category, cov, id, common_keys, representatives)
+            write_fasta_sequences(fastas_path, category, cov, iden, common_keys, representatives)
             break
             
         break
@@ -314,12 +314,15 @@ def process_datasets(datasets, process_function):
 
     for category, paths in pbar:
 
+        full_path = database / "full" / category
+
+        full_path.mkdir(parents = True, exist_ok = True)
+
         pbar.set_description(f"Processing {category}")
         results = process_pool(paths, process_function)
         sequences, structures = process_results(results)
-        print(f"Found {len(sequences)} sequences")
-        print(f"Found {len(structures)} structures")
         SeqIO.write(sequences, f"tmp/{category}.fasta", "fasta")
+        write_pdbs(full_path, structures.keys(), structures)
         process_representatives(category, structures, f"tmp/{category}.fasta")
 
     pbar.close()

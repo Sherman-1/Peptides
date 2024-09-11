@@ -21,6 +21,8 @@ import torch
 from transformers import T5EncoderModel, T5Tokenizer
 
 from Bio import SeqIO
+from Bio.PDB import PDBParser
+from Bio.PDB.Polypeptide import PPBuilder
 import polars as pl 
 
 import random
@@ -51,7 +53,7 @@ def generate_random_protein_sequences(n, min_length, max_length) -> list[str]:
         sequence = ''.join(random.choices(aa, k=length))
         sequences.append(sequence)
     
-    return sequences
+    return { f"seq_{i}": seq for i, seq in enumerate(sequences) }
 
 
 def get_T5_model(device):
@@ -197,7 +199,7 @@ def get_embeddings( model, tokenizer, device, seqs, per_residue, per_protein,
     return results
 
 
-def main():
+def compute(sequences : dict, max_protein_length : int):
 
     if torch.cuda.is_available():
 
@@ -218,22 +220,42 @@ def main():
     print("Loading model ...")
     model, tokenizer = get_T5_model(device)
 
-    
-    fasta = "/Users/simonherman/Documents/I2BC/Peptides/orf_trans.fasta"
-    
-
-    sequences, max_protein_length = get_sequences(fasta, 500)
-
     per_residue = False
     per_protein = True
     
     print("\n ### Generating embeddings ###")
 
-    embeddings = get_embeddings(model, tokenizer, device, sequences, per_residue, per_protein, max_residues=4000, max_seq_len=max_protein_length, max_batch=100)
+    embeddings = get_embeddings(model, tokenizer, device, sequences, per_residue, per_protein, max_residues=6000, max_seq_len=max_protein_length, max_batch=150)
 
+
+    print(embeddings)
     return 0
 
 
 if __name__ == '__main__':
 
-    main()
+
+    pdb_parser = PDBParser(QUIET=True)
+    ppb = PPBuilder()
+
+    import glob 
+
+    pdbs_paths = glob.glob("/Users/simonherman/Documents/I2BC/Peptides/database/full/polytopic/*")
+
+    sequences = dict()
+
+    max_protein_length = 0 
+    for pdb_path in pdbs_paths:
+
+        pdb_id = pdb_path.split("/")[-1].split(".")[0]
+        structure = pdb_parser.get_structure(pdb_id, pdb_path)
+        seq = "".join([ str(pp.get_sequence()) for pp in ppb.build_peptides(structure[0]) ])
+        sequences[pdb_id] = seq
+
+        max_protein_length = max(max_protein_length, len(seq))
+
+    print("Max protein length : ", max_protein_length)
+
+    compute(sequences, max_protein_length)
+
+    
