@@ -14,6 +14,8 @@ from MMseqs import MMseqs2
 
 COVS = [0.3, 0.5, 0.7]
 IDENS = [0.3, 0.5, 0.7]
+MIN_LENGTH = 20
+MAX_LENGTH = 100
 
 
 def search_main_directory():
@@ -132,8 +134,8 @@ def main():
     with open(iORFs_distribution_handle, "r") as f:
         iORFs_distribution = [int(line.strip()) for line in f.readlines()]
 
-    min_length = 20
-    max_length = 70
+    min_length = MIN_LENGTH
+    max_length = MAX_LENGTH
 
     disprot_iterable = download_disprot_fasta(disprot_link)
 

@@ -96,7 +96,9 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    mmseqs2_api.fasta2representativeseq(args.fasta, args.writing_dir, args.cov, args.iden, args.cov_mode)
+    representatives = mmseqs2_api.fasta2representativeseq(args.fasta, args.writing_dir, args.cov, args.iden, args.cov_mode)
+
+    SeqIO.write(representatives.values(), f"{args.writing_dir}/representative.fasta", "fasta")
     
     
 

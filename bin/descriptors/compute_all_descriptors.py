@@ -47,9 +47,6 @@ def main():
 
         category = Path(fasta).stem
 
-        if category != "horizontal":
-            continue
-
         seq_based_descriptors = process_data(records, category) 
 
         embeddings = pTrans_embeddings(records)

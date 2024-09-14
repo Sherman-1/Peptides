@@ -8,11 +8,10 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from pathlib import Path, PosixPath
-from MMseqs import MMseqs2
 import logging
 
 MIN_LENGTH = 20
-MAX_LENGTH = 70
+MAX_LENGTH = 100
 COVS = [0.3]
 IDENS = [0.3]
 
@@ -37,7 +36,7 @@ def search_main_directory():
     
     return main_directory
     
-def create_database_directory():
+def create_database_directory(cleanup = False):
 
     """Creates the database directory and removes any existing contents."""
 
@@ -47,16 +46,17 @@ def create_database_directory():
     database = main_directory / "database"
 
     database.mkdir(exist_ok=True)
-    """
-    for path in database.iterdir():
-        try:
-            if path.is_file():
-                path.unlink()
-            elif path.is_dir():
-                shutil.rmtree(path)
-        except Exception as e:
-            logging.error(f"Error deleting file {path}: {e}")
-    """
+    
+    if cleanup:
+        for path in database.iterdir():
+            try:
+                if path.is_file():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path)
+            except Exception as e:
+                logging.error(f"Error deleting file {path}: {e}")
+    
 def create_directories(cat_path : PosixPath, cov, id):
 
     """Creates the directories for the category, coverage, and identity."""
@@ -181,7 +181,7 @@ def main():
     print(id_to_path)
     """
 
-    create_database_directory()
+    search_main_directory()
 
 
     fasta_url = "https://scop.berkeley.edu/downloads/scopeseq-2.08/astral-scopedom-seqres-gd-all-2.08-stable.fa"
@@ -202,8 +202,8 @@ def main():
 
 if __name__ == "__main__":
 
-    main()
 
+    main()
 
 
 

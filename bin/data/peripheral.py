@@ -4,7 +4,7 @@ import argparse
 import logging 
 from Bio import SeqIO
 
-from utils import read_pdb, binarize_peripheral, search_peripheral_segments, elongate_peripheral_segments, extract_elongated_sequences_v2, extract_elongated_sequences_v3
+from utils import read_pdb, binarize_peripheral, search_peripheral_segments, elongate_peripheral_segments, extract_elongated_sequences_v3
 from utils import setup_logger, exception_catcher
 
 peripheral_logger = setup_logger('peripheral_logger', 'transmembrane.log')
@@ -12,7 +12,6 @@ peripheral_logger = setup_logger('peripheral_logger', 'transmembrane.log')
 @exception_catcher(logging.getLogger('transmembrane_logger'))
 def peripheral(pdb_path, close_margin, outer_margin, min_length, max_length, min_segment_length, iorf_csv, iorf_fasta, gaps, verbose = False):
     
-
     pdb_struct = read_pdb(peripheral_logger,pdb_path, verbose)
 
     chain_binaries = binarize_peripheral(peripheral_logger, pdb_struct, close_margin, outer_margin, verbose)

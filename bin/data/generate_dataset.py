@@ -67,7 +67,7 @@ def create_database_directory(cleanup = False):
 
     representatives_path.mkdir(exist_ok=True)
 
-def setup_environment():
+def setup_environment(clean_database : bool):
 
     """Sets up the random seed, mmseqs API, logging, and database directory."""
 
@@ -78,7 +78,7 @@ def setup_environment():
 
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
 
-    create_database_directory(cleanup=True)
+    create_database_directory(cleanup=clean_database)
 
     tmpdir = Path("tmp")
     tmpdir.mkdir(parents = True, exist_ok = True)
@@ -141,7 +141,7 @@ def plot_heatmaps(stats):
             
 def main():
 
-    setup_environment()
+    setup_environment(clean_database=True)
 
     print("------------------- Generating dataset -------------------")
     print("======== DisProt =========")
@@ -151,7 +151,7 @@ def main():
     print("======== SCOPe =========")
     SCOPe_sequences = SCOPe()
     print("======== Random sequences =========")
-    random_sequences = generate_random_protein_sequences(1000, 20, 70)
+    random_sequences = generate_random_protein_sequences(1000, 20, 100)
 
     full_dataset =  {**OPM_sequences, **SCOPe_sequences, **DisProt_sequences, **random_sequences}
 
@@ -172,9 +172,6 @@ def main():
         data = process_representatives(category, fasta_file)
 
         stats[category] = data
-        
-
-    plot_heatmaps(stats)
 
 
 

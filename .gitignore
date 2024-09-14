@@ -46,3 +46,13 @@ tmp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Python #
+#########
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info

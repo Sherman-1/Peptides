@@ -17,7 +17,7 @@ from peripheral import peripheral
 from transmembrane import transmembrane
 
 MIN_LENGTH = 20
-MAX_LENGTH = 70
+MAX_LENGTH = 100
 MIN_SEGMENT_LENGTH = 10
 INNER_MARGIN = 0
 CLOSE_MARGIN = 5
@@ -26,8 +26,6 @@ GAPS = 1
 IORF_CSV = "input/iORFs.csv"
 COVS = [0.3, 0.5, 0.7]
 IDENS = [0.3, 0.5, 0.7]
-
-
 
 
 def search_main_directory():

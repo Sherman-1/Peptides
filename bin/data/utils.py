@@ -363,9 +363,7 @@ def read_pdb(logger, file_path, secondary_structure_path = None, verbose = False
 
                 chain_id = line[21]
 
-                x = float(line[30:38].strip())
-                y = float(line[38:46].strip())
-                z = float(line[46:54].strip())
+                x, y, z = map(float, (line[30:38].strip(), line[38:46].strip(), line[46:54].strip()))
 
                 if res_name == "DUM":
 
@@ -423,11 +421,9 @@ def read_pdb(logger, file_path, secondary_structure_path = None, verbose = False
 
                             sequence += aa_dict[res_name]
 
-            elif (line[:6] == "HETATM" and "DUM" in line) or suspected_membrane_line:
+            elif (line[:6] == "HETATM" and "DUM" in line): # or suspected_membrane_line | how many cases fr ? not worth
 
-                x = float(line[30:38].strip())
-                y = float(line[38:46].strip())
-                z = float(line[46:54].strip())
+                x, y, z = map(float, (line[30:38].strip(), line[38:46].strip(), line[46:54].strip()))
 
                 mb_coords.append([x,y,z])
 
