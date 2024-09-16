@@ -69,9 +69,6 @@ def get_T5_model(device):
         print("Casting model to full precision for running on CPU ...")
         model.to(torch.float32)
 
-    model = model.to(device)
-    model = model.eval()
-
     return model, tokenizer
 
 def get_sequences(seq_path, max_seq, min_length = 0, max_length = 1000):

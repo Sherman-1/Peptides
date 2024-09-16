@@ -190,11 +190,11 @@ def write_pdb(structure: dict, id: str, writing_dir: PosixPath) -> int:
 
     return 0  
 
-def write_pdbs(pdb_path, common_keys, structures) -> list:
+def write_pdbs(writing_dir, common_keys, structures) -> list:
 
     written_pdbs = []
     for key in common_keys:
-        returned = write_pdb(structures[key], key, pdb_path)
+        returned = write_pdb(structures[key], key, writing_dir)
         if returned == 0:
             written_pdbs.append(key)
         else:
@@ -253,6 +253,11 @@ def process_datasets(datasets, process_function):
         pbar.set_description(f"Processing {category}")
         results = process_pool(paths, process_function)
         sequences, structures = pretty_res(results)
+
+        writing_dir = main_directory / "tmp_output" / category
+        writing_dir.mkdir(parents=True, exist_ok=True)
+
+        write_pdbs(writing_dir, structures.keys(), structures)
 
         result[category] = [seq for seq in sequences if MIN_LENGTH <= len(seq.seq) <= MAX_LENGTH]
 

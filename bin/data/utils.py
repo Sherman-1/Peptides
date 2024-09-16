@@ -872,15 +872,23 @@ def extract_elongated_sequences_v3(logger, tm_indices : dict, pdb_struct : dict,
         log_messages.append(f"Iterating over chain {chain_id} indices : ")
         log_messages.append(f"Indices : {tm_indices[chain_id]}")
 
+        num_segments = len(tm_indices[chain_id])
+
         # Iterate per segment for the current chain
         for i, (start, end, old_start, old_end) in enumerate(tm_indices[chain_id]):
+
+            if i == 0:
+                position = 'first'
+            elif i == num_segments - 1:
+                position = 'last'
+            else:
+                position = 'middle'
 
             sequence = ""
             sequence_short = ""
 
-            # Create the key for this segment based on the FASTA record name
-            fasta_key = f"{protein_name}_{chain_id}_{i+1}_elong"
-            fasta_key_short = f"{protein_name}_{chain_id}_{i+1}_short"
+            fasta_key = f"{protein_name}_{chain_id}_{i+1}_elong_{position}"
+            fasta_key_short = f"{protein_name}_{chain_id}_{i+1}_short_{position}"
             
             full = {}
             full_short = {}

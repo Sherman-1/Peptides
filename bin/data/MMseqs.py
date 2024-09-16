@@ -66,7 +66,7 @@ class MMseqs2:
                 except Exception as e:
                     print(f"Error deleting file {file}: {e}")
 
-    def fasta2representativeseq(self, fasta_file : PosixPath, writing_dir : str, cov : float, iden : float, cov_mode : int = 0) -> dict:
+    def fasta2representativeseq(self, fasta_file : PosixPath, cov : float, iden : float, cov_mode : int = 0) -> dict:
         
         self.createdb(fasta_file)
         self.cluster(coverage=cov, identity=iden, cov_mode=cov_mode)
@@ -84,8 +84,6 @@ class MMseqs2:
 # Example usage
 if __name__ == '__main__':
 
-    mmseqs2_api = MMseqs2(threads=os.cpu_count() - 2, cleanup=True)
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--fasta', help='Path to the input FASTA file')
@@ -93,10 +91,13 @@ if __name__ == '__main__':
     parser.add_argument('--cov', type=float, default = 0.5, help='Coverage threshold for clustering')
     parser.add_argument('--iden', type=float, default = 0.5, help='Identity threshold for clustering')
     parser.add_argument('--cov_mode', type=int, default=0, help='Coverage mode for clustering')
-    
+    parser.add_argument('--threads', type=int, default=os.cpu_count() - 2, help='Number of threads to use')
+
     args = parser.parse_args()
+
+    mmseqs2_api = MMseqs2(threads=args.threads, cleanup=True)
     
-    representatives = mmseqs2_api.fasta2representativeseq(args.fasta, args.writing_dir, args.cov, args.iden, args.cov_mode)
+    representatives = mmseqs2_api.fasta2representativeseq(args.fasta, args.cov, args.iden, args.cov_mode)
 
     SeqIO.write(representatives.values(), f"{args.writing_dir}/representative.fasta", "fasta")
     

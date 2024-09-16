@@ -36,6 +36,7 @@ output/
 save/
 database/
 tmp/
+tmp_output/
 
 # OS generated files #
 ######################

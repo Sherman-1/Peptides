@@ -145,15 +145,15 @@ def main():
 
     print("------------------- Generating dataset -------------------")
     print("======== DisProt =========")
-    DisProt_sequences = DisProt()
+    #DisProt_sequences = DisProt()
     print("======== OPM ========= ")
     OPM_sequences = OPM()
     print("======== SCOPe =========")
-    SCOPe_sequences = SCOPe()
+    #SCOPe_sequences = SCOPe()
     print("======== Random sequences =========")
-    random_sequences = generate_random_protein_sequences(1000, 20, 100)
+    #random_sequences = generate_random_protein_sequences(1000, 20, 100)
 
-    full_dataset =  {**OPM_sequences, **SCOPe_sequences, **DisProt_sequences, **random_sequences}
+    full_dataset =  {**OPM_sequences} # **SCOPe_sequences, **DisProt_sequences, **random_sequences
 
     stats = {}
     
